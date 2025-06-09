@@ -7,6 +7,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+	"github.com/redis/go-redis/v9"
 )
 
 
@@ -15,15 +16,17 @@ type Application struct {
 	Logger *zap.SugaredLogger
 	Version string
 	HubManager *auction.HubManager
+	Rdb *redis.Client
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager) *Application {
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client) *Application {
 
 	return &Application{
 		Config: cfg,
 		Logger: logger,
 		Version: version,
 		HubManager: hubManager,
+		Rdb: rdb,
 	}
 }
 

@@ -45,13 +45,13 @@ type Hub struct {
 	EndTime       time.Time
 }
 
-func NewHub(auctionID string, increment float64) *Hub {
+func NewHub(auctionID string, increment float64,title string, description string, startingPrice int, duration time.Duration) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Hub{
 		AuctionID:     auctionID,
-		Title:         "Auction " + auctionID,
-		Description:   "Live auction",
-		StartingPrice: 100.0,
+		Title:         title,
+		Description:   description,
+		StartingPrice: float64(startingPrice),
 		Clients:       make(map[*Client]bool),
 		Register:      make(chan *Client, 10),
 		Unregister:    make(chan *Client, 10),
@@ -63,7 +63,7 @@ func NewHub(auctionID string, increment float64) *Hub {
 		Increment:     increment,
 		IsActive:      true,
 		StartTime:     time.Now(),
-		EndTime:       time.Now().Add(1 * time.Hour),
+		EndTime:       time.Now().Add(duration),
 	}
 }
 
@@ -116,6 +116,7 @@ func (h *Hub) handleClientRegistration(client *Client) {
 			h.sendToClientWithTimeout(client, data, RegistrationTimeout)
 		}
 	}
+
 }
 
 func (h *Hub) handleClientUnregistration(client *Client) {
@@ -136,6 +137,8 @@ func (h *Hub) handleClientUnregistration(client *Client) {
 }
 
 func (h *Hub) handleBid(bid *Bid) {
+	log.Printf("Received bid: %+v", bid)
+
 	if bid == nil {
 		log.Printf("Received nil bid in auction %s", h.AuctionID)
 		return
@@ -144,23 +147,57 @@ func (h *Hub) handleBid(bid *Bid) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	if !h.IsActive || time.Now().After(h.EndTime) {
+		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Auction has ended")
+		if data, err := json.Marshal(rejectionMsg); err == nil {
+			h.sendToBidderUnsafe(data, bid.SenderID)
+		}
+		return
+	}
+
+	if bid.Price <= 0 {
+		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Bid amount must be positive")
+		if data, err := json.Marshal(rejectionMsg); err == nil {
+			h.sendToBidderUnsafe(data, bid.SenderID)
+		}
+		return
+	}
+
+	const maxBidAmount = 1_000_000_000
+	if bid.Price > maxBidAmount {
+		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Bid amount too large")
+		if data, err := json.Marshal(rejectionMsg); err == nil {
+			h.sendToBidderUnsafe(data, bid.SenderID)
+		}
+		return
+	}
+
 	h.lastActive = time.Now()
 	bid.Timestamp = time.Now()
 
-	h.BidHistory = append(h.BidHistory, bid)
-
-	minRequired := h.Increment
+	var minRequired float64
 	if h.HighestBid != nil {
 		minRequired = h.HighestBid.Price + h.Increment
-	} else if h.StartingPrice > 0 {
-		minRequired = h.StartingPrice + h.Increment
+	} else {
+		minRequired = h.StartingPrice
 	}
 
+	
+	if h.HighestBid != nil && h.HighestBid.SenderID == bid.SenderID {
+		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Cannot outbid yourself")
+		if data, err := json.Marshal(rejectionMsg); err == nil {
+			h.sendToBidderUnsafe(data, bid.SenderID)
+		}
+		h.BidHistory = append(h.BidHistory, bid)
+		return
+	}
+
+
 	if bid.Price >= minRequired {
-
 		h.HighestBid = bid
-		bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price)
+		h.BidHistory = append(h.BidHistory, bid)
 
+		bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price)
 		if data, err := json.Marshal(bidUpdateMsg); err == nil {
 			h.broadcastUnsafe(data)
 		} else {
@@ -168,26 +205,30 @@ func (h *Hub) handleBid(bid *Bid) {
 		}
 
 		log.Printf("New highest bid in auction %s: $%.2f by %s", h.AuctionID, bid.Price, bid.SenderID)
-	} else {
-
-		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Bid too low. Minimum required: $"+fmt.Sprintf("%.2f", minRequired))
-
-		if data, err := json.Marshal(rejectionMsg); err == nil {
-			h.sendToBidderUnsafe(data, bid.SenderID)
-		} else {
-			log.Printf("Failed to marshal bid rejection message: %v", err)
-		}
-
-		currentPrice := 0.0
-		if h.HighestBid != nil {
-			currentPrice = h.HighestBid.Price
-		}
-		log.Printf("Bid rejected in auction %s: $%.2f by %s (current: $%.2f, required: $%.2f)",
-			h.AuctionID, bid.Price, bid.SenderID, currentPrice, minRequired)
+		return
 	}
+
+
+	h.BidHistory = append(h.BidHistory, bid)
+
+	rejectionMsg := types.NewErrorMessage(h.AuctionID, fmt.Sprintf("Bid too low. Minimum required: $%.2f", minRequired))
+	if data, err := json.Marshal(rejectionMsg); err == nil {
+		h.sendToBidderUnsafe(data, bid.SenderID)
+	} else {
+		log.Printf("Failed to marshal bid rejection message: %v", err)
+	}
+
+	currentPrice := h.StartingPrice
+	if h.HighestBid != nil {
+		currentPrice = h.HighestBid.Price
+	}
+	log.Printf("Bid rejected in auction %s: $%.2f by %s (current: $%.2f, required: $%.2f)",
+		h.AuctionID, bid.Price, bid.SenderID, currentPrice, minRequired)
 }
 
+
 func (h *Hub) broadcastUnsafe(message []byte) {
+	log.Printf("Broadcasting message to clients: %s", string(message))
 	for client := range h.Clients {
 		select {
 		case client.Send <- message:
@@ -310,30 +351,33 @@ func (h *Hub) GetLastActive() time.Time {
 }
 
 func (h *Hub) GetAuctionData() *types.AuctionData {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+    h.mu.RLock()
+    defer h.mu.RUnlock()
 
-	auctionData := &types.AuctionData{
-		AuctionID:     h.AuctionID,
-		Title:         h.Title,
-		Description:   h.Description,
-		StartingPrice: h.StartingPrice,
-		CurrentPrice:  h.StartingPrice,
-		ClientCount:   len(h.Clients),
-		IsActive:      h.IsActive,
-		StartTime:     h.StartTime,
-		EndTime:       h.EndTime,
-		Increment:     h.Increment,
-	}
+    currentPrice := h.StartingPrice
+    var highestBidder string
+    
+    if h.HighestBid != nil {
+        currentPrice = h.HighestBid.Price
+        highestBidder = h.HighestBid.SenderID
+    }
 
-	if h.HighestBid != nil {
-		auctionData.CurrentPrice = h.HighestBid.Price
-		auctionData.HighestBidder = h.HighestBid.SenderID
-	}
+    auctionData := &types.AuctionData{
+        AuctionID:     h.AuctionID,
+        Title:         h.Title,
+        Description:   h.Description,
+        StartingPrice: h.StartingPrice,
+        CurrentPrice:  currentPrice,
+        HighestBidder: highestBidder,
+        ClientCount:   len(h.Clients),
+        IsActive:      h.IsActive && time.Now().Before(h.EndTime),
+        StartTime:     h.StartTime,
+        EndTime:       h.EndTime,
+        Increment:     h.Increment,
+    }
 
-	return auctionData
+    return auctionData
 }
-
 func (h *Hub) Cancel() {
 	log.Printf("Cancelling hub %s", h.AuctionID)
 	h.mu.Lock()

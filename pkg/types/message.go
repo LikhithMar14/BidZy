@@ -1,5 +1,7 @@
 package types
 
+import "slices"
+
 import "time"
 
 type MessageType string
@@ -70,14 +72,9 @@ func (m *Message) IsValid() bool {
 			return false
 		}
 		validActions := []AuctionAction{ActionJoin, ActionLeave, ActionCurrentBid, ActionBidRejected, ActionGetAuctionData, ActionAuctionStarted, ActionAuctionEnded}
-		for _, action := range validActions {
-			if m.Action == action {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(validActions, m.Action)
 	case TypeBid:
-		return m.Action == ActionPlaceBid && m.BiddingPrice > 0 && m.SenderID != ""
+		return m.Action == ActionPlaceBid && m.BiddingPrice > 0 && m.SenderID != "" && m.AuctionID != "" 
 	case TypePing, TypePong, TypeCount, TypeUserJoined, TypeUserLeft, TypeBidUpdate, TypeSuccess:
 		return true
 	case TypeError:
@@ -192,4 +189,13 @@ func NewAuctionDataMessage(auctionID string, data *AuctionData) *Message {
 		Data:      data,
 		Timestamp: time.Now(),
 	}
+}
+
+
+type CreateAuctionRequest struct {
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	StartingPrice float64 `json:"startingPrice"`
+	Increment     float64 `json:"increment"`
+	Duration      int     `json:"durationHours"` 
 }

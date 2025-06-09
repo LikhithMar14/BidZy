@@ -3,11 +3,11 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	"github.com/LikhithMar14/BidZy/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
@@ -64,7 +64,7 @@ func (app *Application) Routes() *chi.Mux {
 func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := strings.TrimSpace(r.URL.Query().Get("auctionId"))
 	senderId := strings.TrimSpace(r.URL.Query().Get("senderId"))
-	
+
 
 
 	if auctionId == "" || senderId == "" {
@@ -97,26 +97,22 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if some one want join auction there should be an auction definetly
 
-	increment := 100.0
-	if incrementStr := r.URL.Query().Get("increment"); incrementStr != "" {
-		if parsed, err := strconv.ParseFloat(incrementStr, 64); err == nil && parsed > 0 {
-			increment = parsed
-		}
-	}
+	hub := app.HubManager.GetHub(auctionId)
 
-	hub := app.HubManager.GetOrCreateHub(auctionId, increment)
 	if hub == nil {
-		app.Logger.Errorw("Failed to create or get hub",
+		app.Logger.Errorw("Auction not found",
 			"auctionId", auctionId,
 			"senderId", senderId)
+		http.Error(w, "Auction not found", http.StatusNotFound)
 		conn.Close()
 		return
 	}
 
 	client := &auction.Client{
 		ID:   senderId,
-		Hub:  hub,
+		Hub:  hub	,
 		Conn: conn,
 		Send: make(chan []byte, 256),
 		Rdb:  app.Rdb,
@@ -246,26 +242,18 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var createAuctionRequest types.CreateAuctionRequest
 
-	var config struct {
-		Title         string  `json:"title"`
-		Description   string  `json:"description"`
-		StartingPrice float64 `json:"startingPrice"`
-		Increment     float64 `json:"increment"`
-		Duration      int     `json:"durationHours"` 
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&createAuctionRequest); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-
-	if config.Increment <= 0 {
-		config.Increment = 100.0
+	if createAuctionRequest.Increment <= 0 {
+		createAuctionRequest.Increment = 100.0
 	}
-	if config.Duration <= 0 {
-		config.Duration = 1 
+	if createAuctionRequest.Duration <= 0 {
+		createAuctionRequest.Duration = 1 
 	}
 
 
@@ -274,7 +262,7 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hub := app.HubManager.CreateHub(auctionId, config.Title, config.Description, config.StartingPrice, config.Increment, time.Duration(config.Duration)*time.Hour)
+	hub := app.HubManager.CreateHub(auctionId, createAuctionRequest.Title, createAuctionRequest.Description, createAuctionRequest.StartingPrice, createAuctionRequest.Increment, time.Duration(createAuctionRequest.Duration)*time.Hour)
 	if hub == nil {
 		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
 		return

@@ -129,6 +129,7 @@ func (c *Client) handleAuctionMessage(msg *types.Message) {
 }
 
 func (c *Client) handleBidMessage(msg *types.Message) {
+	log.Printf("Bid message: %+v", msg)
 	if msg.Action == types.ActionPlaceBid && msg.BiddingPrice > 0 {
 		bid := &Bid{
 			SenderID: msg.SenderID,

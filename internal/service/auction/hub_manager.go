@@ -55,7 +55,7 @@ func (m *HubManager) GetHub(auctionId string) *Hub {
 	return m.hubs[auctionId]
 }
 
-func (m *HubManager) GetOrCreateHub(auctionId string, increment float64) *Hub {
+func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title string, description string, startingPrice int, duration time.Duration) *Hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64) *Hub {
 	}
 
 	log.Printf("Creating new hub for auction %s", auctionId)
-	hub := NewHub(auctionId, increment)
+	hub := NewHub(auctionId, increment, title, description, startingPrice, duration)
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
@@ -98,7 +98,7 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	}
 
 	log.Printf("Creating new hub for auction %s with custom config", auctionId)
-	hub := NewHub(auctionId, increment)
+	hub := NewHub(auctionId, increment, title, description, int(startingPrice), duration)
 
 
 	hub.Title = title
@@ -238,6 +238,3 @@ func (m *HubManager) Stop() {
 	log.Printf("HubManager stopped")
 }
 
-func (m *HubManager) CleanupInactiveHubs() {
-	log.Printf("Warning: CleanupInactiveHubs() called but cleanup is already running")
-}

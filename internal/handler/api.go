@@ -4,16 +4,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LikhithMar14/BidZy/internal/service"
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
-	"github.com/LikhithMar14/BidZy/internal/service/auth"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 )
 
 type Service struct {
-	AuthService *auth.AuthService
+	AuthService *service.AuthService
+
 }
 
 type Application struct {
@@ -22,14 +24,12 @@ type Application struct {
 	Version string
 	HubManager *auction.HubManager
 	Rdb *redis.Client
-	Service *Service
+	Service *service.Service
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client,store *store.Store) *Application {
-	authService := auth.NewAuthService(store.Auth)	
-	service := &Service{
-		AuthService: authService,
-	}
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client,store *store.Store, googleOauthClient *oauth2.Config) *Application {
+
+	service := service.NewService(store, cfg.JwtSecret, googleOauthClient)
 	return &Application{
 		Config: cfg,
 		Logger: logger,

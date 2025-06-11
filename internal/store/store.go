@@ -15,7 +15,8 @@ type Store struct {
 
 
 type AuthRepository interface {
-	CreateUser(ctx context.Context, user *types.CreateUserRequest) (*types.User, error)
+	CreateUser(ctx context.Context, user *types.CreateUserRequest, hashedPassword string) (*types.User, error)
+	GetUserByEmailAndUserName(ctx context.Context, email , userName string) (*types.User, error)
 }
 
 func NewStorage(db *sql.DB) *Store {

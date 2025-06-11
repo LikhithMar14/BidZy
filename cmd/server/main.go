@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+
 )
 
 const Version = "1.0.0"
@@ -26,6 +27,12 @@ func main() {
 	if err != nil {
 		logger.Fatalw("failed to load environment variables", "error", err)
 	}
+
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+
+	googleOauthClient := handler.InitGoogleOauthConfig(googleClientID, googleClientSecret, googleRedirectURL)
 
 	cfg := handler.Load()
 
@@ -57,7 +64,7 @@ func main() {
 		"maxIdleConns", cfg.Db.MaxIdleConns,
 		"maxLifetime", cfg.Db.MaxLifetime.String())
 
-	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb,store)
+	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient)
 
 	mux := app.Routes()
 

@@ -2,12 +2,14 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/LikhithMar14/BidZy/pkg/types"
+	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
@@ -20,6 +22,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
+var oauthStateString,_ = utils.GenerateOAuthState(12)
 
 func (app *Application) Routes() *chi.Mux {
 	mux := chi.NewRouter()
@@ -47,7 +50,10 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/stats", app.GetStats)
 		r.Post("/register", app.RegisterUser)
-
+		r.Post("/login", app.LoginUser)
+		r.Get("/auth/google/login",app.GoogleLoginHandler)
+		r.Get("/auth/google/callback",app.GoogleCallbackHandler)
+		r.With(app.AuthMiddleware).Get("/about", app.AboutUser)
 		r.Route("/auctions", func(r chi.Router) {
 			r.Get("/", app.ListAuctions)
 			r.Get("/{auctionId}", app.GetAuctionData)
@@ -103,6 +109,90 @@ func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		"data":userResponse,
 		"message":"User registered successfully",
 	})
+}
+
+func (app *Application) LoginUser(w http.ResponseWriter,r *http.Request) {
+
+	ctx := r.Context()
+
+	user := types.LoginRequest{}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{} {
+			"success":false,
+			"message":"Invalid request body",
+			"data":nil,
+		})
+		return
+	}
+
+	var userResponse *types.LoginResponse
+	userResponse, err := app.Service.AuthService.Login(ctx, &user)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid credentials") {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{} {
+				"success":false,
+				"message":"Invalid credentials",
+				"data":nil,
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{} {
+			"success":false,
+			"message":"Internal server error",
+			"data":nil,
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{} {
+		"success":true,
+		"data":userResponse,
+		"message":"Login successful",
+	})
+}
+
+func (app *Application) GoogleLoginHandler(w http.ResponseWriter,r *http.Request) {
+	url := app.Service.AuthService.GetGoogleLoginURL(oauthStateString)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (app *Application) GoogleCallbackHandler(w http.ResponseWriter,r *http.Request) {
+	if r.FormValue("state") != oauthStateString {
+		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		return
+	}
+
+	userInfo, err := app.Service.AuthService.GetUserInfoFromGoogle(r.Context(), r.FormValue("code"))
+	if err != nil {
+		http.Error(w, "Failed to get user info: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(userInfo)
+}
+func (app *Application) AboutUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("I AM IN ABOUT USER")
+
+		log.Println("I AM IN ABOUT USER 1")
+	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
+	user := ctx.Value(types.UserContextKey)
+	log.Println(user)
+	log.Println("I AM IN ABOUT USER 2")
+	json.NewEncoder(w).Encode(map[string]interface{} {
+		"success":true,
+			"data":user,
+			"message":"User about",
+		})
+	
 }
 func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := strings.TrimSpace(r.URL.Query().Get("auctionId"))

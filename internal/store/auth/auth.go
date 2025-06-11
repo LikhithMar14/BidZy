@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/LikhithMar14/BidZy/pkg/types"
@@ -18,19 +19,22 @@ func NewAuthRepository(db *sql.DB) *authStore {
 	return &authStore{db: db}
 }
 
-func (s *authStore) CreateUser(ctx context.Context, user *types.CreateUserRequest) (*types.User, error) {
+func (s *authStore) CreateUser(ctx context.Context, user *types.CreateUserRequest, hashedPassword string) (*types.User, error) {
+
+	log.Println("Creating user", user.UserName, user.Email, hashedPassword)
 	query := `INSERT INTO users (user_name, email, hashed_password) 
 	          VALUES ($1, $2, $3) 
-	          RETURNING id, user_name, email, created_at, updated_at;`
+	          RETURNING id, user_name, email, hashed_password, created_at, updated_at;`
 
 	var userResponse types.User
 
 	err := s.db.QueryRowContext(ctx, query,
-		user.UserName, user.Email, user.Password,
+		user.UserName, user.Email, hashedPassword,
 	).Scan(
 		&userResponse.ID,
 		&userResponse.UserName,
 		&userResponse.Email,
+		&userResponse.Password,
 		&userResponse.CreatedAt,
 		&userResponse.UpdatedAt,
 	)
@@ -43,4 +47,35 @@ func (s *authStore) CreateUser(ctx context.Context, user *types.CreateUserReques
 	}
 
 	return &userResponse, nil
+}
+func (s *authStore) GetUserByEmailAndUserName(ctx context.Context, email, userName string) (*types.User, error) {
+	if email == "" || userName == "" {
+		return nil, errors.New("email and username are required")
+	}
+
+	query := `SELECT id, user_name, email, hashed_password, created_at, updated_at 
+	          FROM users 
+	          WHERE email = $1 OR user_name = $2;`
+
+	var user types.User
+
+	err := s.db.QueryRowContext(ctx, query, email, userName).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Println("User not found")
+		return nil, nil // user doesn't exist — fine
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil
 }

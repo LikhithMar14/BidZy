@@ -6,6 +6,10 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+
+
 )
 
 type Config struct {
@@ -14,6 +18,7 @@ type Config struct {
 	Env         string
 	ApiUrl      string
 	FrontendUrl string
+	JwtSecret   string
 }
 
 type DbConfig struct {
@@ -60,5 +65,23 @@ func Load() *Config {
 		Env:         os.Getenv("ENV"),
 		ApiUrl:      os.Getenv("API_URL"),
 		FrontendUrl: os.Getenv("FRONTEND_URL"),
+		JwtSecret:   os.Getenv("JWT_SECRET"),
 	}
+}
+var GoogleOauthConfig *oauth2.Config
+
+func InitGoogleOauthConfig(googleClientID, googleClientSecret, googleRedirectURL string) *oauth2.Config {
+	GoogleOauthConfig = &oauth2.Config{
+		RedirectURL:  googleRedirectURL,
+		ClientID:     googleClientID,
+		ClientSecret: googleClientSecret,
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+		Endpoint: google.Endpoint,
+	}
+	return GoogleOauthConfig
+
+
 }

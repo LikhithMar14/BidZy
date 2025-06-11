@@ -5,11 +5,16 @@ import (
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	"github.com/LikhithMar14/BidZy/internal/service/auth"
+	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/go-chi/chi/v5"
-	"go.uber.org/zap"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
+type Service struct {
+	AuthService *auth.AuthService
+}
 
 type Application struct {
 	Config *Config
@@ -17,16 +22,21 @@ type Application struct {
 	Version string
 	HubManager *auction.HubManager
 	Rdb *redis.Client
+	Service *Service
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client) *Application {
-
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client,store *store.Store) *Application {
+	authService := auth.NewAuthService(store.Auth)	
+	service := &Service{
+		AuthService: authService,
+	}
 	return &Application{
 		Config: cfg,
 		Logger: logger,
 		Version: version,
 		HubManager: hubManager,
 		Rdb: rdb,
+		Service: service,
 	}
 }
 

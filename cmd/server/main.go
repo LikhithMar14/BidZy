@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -8,6 +9,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/handler"
 	"github.com/LikhithMar14/BidZy/internal/migrations"
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	"github.com/LikhithMar14/BidZy/internal/store"
 	db "github.com/LikhithMar14/BidZy/internal/store/database"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -34,13 +36,15 @@ func main() {
 	})
 
 	hubManager := auction.NewHubManager()
-
+	fmt.Println(cfg.Db.Addr)
 
 	database, err := db.Open(cfg.Db.Addr, cfg.Db.MaxOpenConns, cfg.Db.MaxIdleConns, cfg.Db.MaxLifetime.String())
 	if err != nil {
 		logger.Fatalw("failed to open database", "error", err)
 	}
 	defer database.Close()
+
+	store := store.NewStorage(database)
 
 	err = db.MigrateFS(database, migrations.FS, ".")
 	if err != nil {
@@ -53,7 +57,7 @@ func main() {
 		"maxIdleConns", cfg.Db.MaxIdleConns,
 		"maxLifetime", cfg.Db.MaxLifetime.String())
 
-	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb)
+	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb,store)
 
 	mux := app.Routes()
 

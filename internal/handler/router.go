@@ -46,7 +46,7 @@ func (app *Application) Routes() *chi.Mux {
 
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/stats", app.GetStats)
-
+		r.Post("/register", app.RegisterUser)
 
 		r.Route("/auctions", func(r chi.Router) {
 			r.Get("/", app.ListAuctions)
@@ -60,12 +60,53 @@ func (app *Application) Routes() *chi.Mux {
 
 	return mux
 }
+func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
+	user := types.CreateUserRequest{}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{} {
+			"success":false,
+			"message":"Invalid request body",
+			"data":nil,
+		})
+		return
+	}
+	var userResponse *types.CreateUserResponse
+	userResponse, err := app.Service.AuthService.Register(ctx, &user)
+	if err != nil {
+		if strings.Contains(err.Error(), "user already exists") {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{} {
+				"success":false,
+				"message":"User already exists",
+				"data":nil,
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{} {
+			"success":false,
+			"message":"Internal server error",
+			"data":nil,
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{} {
+		"success":true,
+		"data":userResponse,
+		"message":"User registered successfully",
+	})
+}
 func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := strings.TrimSpace(r.URL.Query().Get("auctionId"))
 	senderId := strings.TrimSpace(r.URL.Query().Get("senderId"))
-
-
 
 	if auctionId == "" || senderId == "" {
 		app.Logger.Warnw("Missing required parameters",
@@ -75,7 +116,6 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "auctionId and senderId are required", http.StatusBadRequest)
 		return
 	}
-
 
 	if len(auctionId) > 50 || len(senderId) > 50 {
 		app.Logger.Warnw("Parameter length validation failed",
@@ -112,7 +152,7 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 
 	client := &auction.Client{
 		ID:   senderId,
-		Hub:  hub	,
+		Hub:  hub,
 		Conn: conn,
 		Send: make(chan []byte, 256),
 		Rdb:  app.Rdb,
@@ -122,7 +162,6 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		"auctionId", auctionId,
 		"senderId", senderId,
 		"remoteAddr", r.RemoteAddr)
-
 
 	select {
 	case hub.Register <- client:
@@ -253,9 +292,8 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		createAuctionRequest.Increment = 100.0
 	}
 	if createAuctionRequest.Duration <= 0 {
-		createAuctionRequest.Duration = 1 
+		createAuctionRequest.Duration = 1
 	}
-
 
 	if app.HubManager.GetHub(auctionId) != nil {
 		http.Error(w, "Auction already exists", http.StatusConflict)

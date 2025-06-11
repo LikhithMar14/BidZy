@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+
 )
 
 type Config struct {
@@ -22,8 +23,9 @@ type DbConfig struct {
 	MaxLifetime  time.Duration
 }
 
-func Load() *Config {
 
+
+func Load() *Config {
 
 	
 	maxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))

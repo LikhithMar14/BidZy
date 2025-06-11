@@ -100,7 +100,6 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	log.Printf("Creating new hub for auction %s with custom config", auctionId)
 	hub := NewHub(auctionId, increment, title, description, int(startingPrice), duration)
 
-
 	hub.Title = title
 	hub.Description = description
 	hub.StartingPrice = startingPrice
@@ -210,6 +209,7 @@ func (m *HubManager) performCleanup(inactivityThreshold time.Duration) {
 	for _, auctionID := range toDelete {
 		if hub, exists := m.hubs[auctionID]; exists {
 			hub.Cancel()
+			// See, here we are calling `hub.Cancel()`. I know that inside `Hub` we are not going to touch `m.mu.Lock()`."
 			delete(m.hubs, auctionID)
 			log.Printf("Cleaned up inactive hub %s", auctionID)
 		}
@@ -227,6 +227,8 @@ func (m *HubManager) Stop() {
 
 	m.cancel()
 
+	// Never call external functions (including cancel() or Cancel()) while holding a
+	// mutex unless you know exactly what they do and can guarantee they won’t try to acquire the same mutex or block forever.
 
 	m.mu.Lock()
 	for _, hub := range m.hubs {
@@ -235,6 +237,9 @@ func (m *HubManager) Stop() {
 	m.hubs = make(map[string]*Hub)
 	m.mu.Unlock()
 
+	// We call hub.Cancel() inside the lock assuming it doesn't access m.mu.
+	// If it does, it can cause a deadlock since m.mu is already held.
+	// Refactor to cancel hubs outside the lock if future changes modify HubManager.
+
 	log.Printf("HubManager stopped")
 }
-

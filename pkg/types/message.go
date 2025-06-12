@@ -198,4 +198,55 @@ type CreateAuctionRequest struct {
 	StartingPrice float64 `json:"startingPrice"`
 	Increment     float64 `json:"increment"`
 	Duration      int     `json:"durationHours"` 
+	UserID        string  `json:"userId"`
+	Image         string  `json:"image"`
+	CategoryID    string  `json:"categoryId"`
+	StartDateTime time.Time `json:"startDateTime"`
+	EndDateTime   time.Time `json:"endDateTime"`
+	Status        string  `json:"status"`
+
+
+}
+
+type NewBidRequest struct {
+	Amount float64 `json:"amount"`
+	SenderID string `json:"senderId"`
+	AuctionID string `json:"auctionId"`
+}
+
+type NewBidResponse struct {
+	ID string `json:"id"`
+	Amount float64 `json:"amount"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type Bid struct {
+	ID string `json:"id"`
+	Amount float64 `json:"amount"`
+	CreatedAt time.Time `json:"createdAt"`
+	SenderID string `json:"senderId"`
+	AuctionID string `json:"auctionId"`
+	BidderName string `json:"bidderName"`
+	AuctionTitle string `json:"auctionTitle"`
+	AuctionStatus string `json:"auctionStatus"`
+	AuctionEndDate time.Time `json:"auctionEndDate"`
+	AuctionImage string `json:"auctionImage"`
+
+}
+
+type CreateAuctionResponse struct {
+	ID string `json:"id"`
+	Title string `json:"title"`
+	Description string `json:"description"`
+	StartingPrice float64 `json:"startingPrice"`
+	CurrentPrice float64 `json:"currentPrice"`
+	StartDateTime time.Time `json:"startDateTime"`
+	EndDateTime time.Time `json:"endDateTime"`
+	Status string `json:"status"`
+	Image string `json:"image"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	User User `json:"user"`
+	CategoryID string `json:"categoryId"`
+	
 }

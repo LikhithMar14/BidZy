@@ -31,6 +31,8 @@ type CategoryRepository interface {
 
 type AuctionRepository interface {
 	CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.CreateAuctionResponse, error)
+	MarkAuctionsActive(ctx context.Context) error
+	MarkAuctionsEnded(ctx context.Context) error
 }
 
 type BidRepositotry interface {

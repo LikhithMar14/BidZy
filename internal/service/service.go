@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/LikhithMar14/BidZy/internal/service/auth"
+	"github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/LikhithMar14/BidZy/internal/service/category"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/LikhithMar14/BidZy/pkg/types"

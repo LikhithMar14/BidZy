@@ -8,6 +8,7 @@ import (
 
 	"github.com/LikhithMar14/BidZy/internal/handler"
 	"github.com/LikhithMar14/BidZy/internal/migrations"
+	"github.com/LikhithMar14/BidZy/internal/scheduler"
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	db "github.com/LikhithMar14/BidZy/internal/store/database"
@@ -57,6 +58,8 @@ func main() {
 	if err != nil {
 		logger.Fatalw("failed to migrate database", "error", err)
 	}
+	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction)
+	auctionScheduler.Start()
 
 	logger.Infow("database connection pool established and migrated successfully",
 		"addr", cfg.Db.Addr,

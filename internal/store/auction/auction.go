@@ -16,7 +16,7 @@ func NewAuctionRepository(db *sql.DB) *auctionStore {
 }
 
 func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.CreateAuctionResponse, error) {
-	log.Println("USER ID FROM STORAGE LAYER:", userID)
+	log.Println("AUCTION FROM STORAGE LAYER:", auction)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,31 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 
 	return &newAuction, nil
 }
+func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
+	query := `
+		UPDATE auctions
+		SET status = 'ACTIVE'
+		WHERE start_date <= NOW() AND end_date >= NOW();
+	`
+	_, err := s.db.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
+func (s *auctionStore) MarkAuctionsEnded(ctx context.Context) error {
+	query := `
+		UPDATE auctions
+		SET status = 'ENDED'
+		WHERE end_date < NOW();
+	`
+	_, err := s.db.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 // func (s *auctionStore) GetAuctionByID(ctx context.Context, id string) (*types.CreateAuctionResponse, error) {
 // 	query := `

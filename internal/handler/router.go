@@ -470,3 +470,8 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 		"success": true, "data": categories, "message": "Categories fetched successfully",
 	})
 }
+
+
+//http-testing
+
+

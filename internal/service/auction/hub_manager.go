@@ -108,6 +108,7 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
+
 	log.Printf("Created auction %s: %s", auctionId, title)
 	return hub
 }

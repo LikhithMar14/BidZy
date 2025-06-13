@@ -33,8 +33,6 @@ func NewAuctionHTTP(store store.AuctionRepository) *AuctionHTTP {
 		EndDateTime: auction.EndDateTime,
 		Status: auction.Status,
 		Image: auction.Image,
-		CreatedAt: auction.CreatedAt,
-		UpdatedAt: auction.UpdatedAt,
 		User: auction.User,
 		CategoryIDs: auction.CategoryIDs,
 		Increment: auction.Increment,

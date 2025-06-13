@@ -70,7 +70,7 @@ func (s *authStore) GetUserByEmailAndUserName(ctx context.Context, email, userNa
 
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Println("User not found")
-		return nil, nil // user doesn't exist — fine
+		return nil, nil 
 	}
 
 	if err != nil {

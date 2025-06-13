@@ -3,6 +3,7 @@ package auction
 import (
 	"context"
 	"database/sql"
+	"log"
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
@@ -14,22 +15,34 @@ func NewAuctionRepository(db *sql.DB) *auctionStore {
 	return &auctionStore{db: db}
 }
 
-func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest) (*types.CreateAuctionResponse, error) {
-	query := `
-		INSERT INTO auctions (title, description, starting_price, current_price, start_date, end_date, status, image, user_id) 
-		VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8) 
-		RETURNING id, title, starting_price, current_price, start_date, end_date, status, created_at;`
+func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.CreateAuctionResponse, error) {
+	log.Println("USER ID FROM STORAGE LAYER:", userID)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	insertAuctionQuery := `
+		INSERT INTO auctions (
+			id, title, description, starting_price, current_price,
+			start_date, end_date, status, image, user_id
+		)
+		VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9)
+		RETURNING id, title, starting_price, current_price, start_date, end_date, status, created_at;
+	`
 
 	var newAuction types.CreateAuctionResponse
-	err := s.db.QueryRowContext(ctx, query,
+	err = tx.QueryRowContext(ctx, insertAuctionQuery,
+		auction.ID,
 		auction.Title,
 		auction.Description,
 		auction.StartingPrice,
 		auction.StartDateTime,
 		auction.EndDateTime,
-		auction.Status,	
+		auction.Status,
 		auction.Image,
-		auction.UserID,
+		userID,
 	).Scan(
 		&newAuction.ID,
 		&newAuction.Title,
@@ -40,13 +53,29 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 		&newAuction.Status,
 		&newAuction.CreatedAt,
 	)
-
 	if err != nil {
+		return nil, err
+	}
+
+	// Insert into junction table
+	insertCategoryQuery := `
+		INSERT INTO auction_categories (auction_id, category_id)
+		VALUES ($1, $2);
+	`
+	for _, categoryID := range categoryIDs {
+		_, err := tx.ExecContext(ctx, insertCategoryQuery, auction.ID, categoryID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
 	return &newAuction, nil
 }
+
 
 // func (s *auctionStore) GetAuctionByID(ctx context.Context, id string) (*types.CreateAuctionResponse, error) {
 // 	query := `

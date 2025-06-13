@@ -28,7 +28,6 @@ func NewAuthService(store store.AuthRepository, jwtSecret string, googleOauthCli
 	}
 }
 
-// Traditional registration
 func (s *AuthService) Register(ctx context.Context, req *types.CreateUserRequest) (*types.CreateUserResponse, error) {
 	exists, err := s.store.GetUserByEmailAndUserName(ctx, req.Email, req.UserName)
 	if err != nil {
@@ -54,9 +53,11 @@ func (s *AuthService) Register(ctx context.Context, req *types.CreateUserRequest
 	}, nil
 }
 
-// Traditional login
+
 func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error) {
-	user, err := s.store.GetUserByEmailAndUserName(ctx, req.UserName, req.Email)
+	user, err := s.store.GetUserByEmailAndUserName(ctx, req.Email, req.UserName)
+	log.Println("user", user)
+	log.Println("err", err)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 	return &types.LoginResponse{Token: token}, nil
 }
 
-// JWT generation
+
 func (s *AuthService) generateToken(userName, email, role, userID string) string {
 	if role == "" {
 		role = "user"
@@ -96,12 +97,12 @@ func (s *AuthService) generateToken(userName, email, role, userID string) string
 	return tokenString
 }
 
-// Google OAuth: Get login URL
+
 func (s *AuthService) GetGoogleLoginURL(state string) string {
 	return s.googleOauthClient.AuthCodeURL(state)
 }
 
-// Google OAuth: Fetch user info, auto-login or register
+
 func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (map[string]interface{}, error) {
 	token, err := s.googleOauthClient.Exchange(ctx, code)
 	if err != nil {
@@ -120,16 +121,15 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 		return nil, err
 	}
 
-	// Parse fields safely
 	email, _ := userInfo["email"].(string)
 	username, _ := userInfo["name"].(string)
-	googleID, _ := userInfo["id"].(string) // use ID as password fallback
+	googleID, _ := userInfo["id"].(string) 
 
 	if email == "" || username == "" || googleID == "" {
 		return nil, errors.New("invalid user info from Google")
 	}
 
-	// Check if user exists
+		// Check if user exists
 	existingUser, err := s.store.GetUserByEmailAndUserName(ctx, email, username)
 	if err != nil {
 		return nil, err

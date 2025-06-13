@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -54,12 +56,13 @@ func (app *Application) Routes() *chi.Mux {
 		r.Get("/auth/google/login",app.GoogleLoginHandler)
 		r.Get("/auth/google/callback",app.GoogleCallbackHandler)
 		r.With(app.AuthMiddleware).Get("/about", app.AboutUser)
+		r.With(app.AuthMiddleware).Get("/categories",app.GetCategories)
 		r.Route("/auctions", func(r chi.Router) {
 			r.Get("/", app.ListAuctions)
 			r.Get("/{auctionId}", app.GetAuctionData)
 			r.Get("/{auctionId}/clients", app.GetAuctionClients)
 			r.Get("/{auctionId}/bids", app.GetAuctionBids)
-			r.Post("/{auctionId}/create", app.CreateAuction)
+			r.With(app.AuthMiddleware).Post("/{auctionId}/create", app.CreateAuction)
 			r.Delete("/{auctionId}", app.DeleteAuction)
 		})
 	})
@@ -181,7 +184,7 @@ func (app *Application) GoogleCallbackHandler(w http.ResponseWriter,r *http.Requ
 func (app *Application) AboutUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("I AM IN ABOUT USER")
 
-		log.Println("I AM IN ABOUT USER 1")
+	log.Println("I AM IN ABOUT USER 1")
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 	user := ctx.Value(types.UserContextKey)
@@ -365,46 +368,70 @@ func (app *Application) GetAuctionBids(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
-	auctionId := chi.URLParam(r, "auctionId")
-	if auctionId == "" {
-		http.Error(w, "Auction ID is required", http.StatusBadRequest)
-		return
-	}
+	var req types.CreateAuctionRequest
 
-	var createAuctionRequest types.CreateAuctionRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&createAuctionRequest); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-
-	if createAuctionRequest.Increment <= 0 {
-		createAuctionRequest.Increment = 100.0
-	}
-	if createAuctionRequest.Duration <= 0 {
-		createAuctionRequest.Duration = 1
-	}
-
-	if app.HubManager.GetHub(auctionId) != nil {
-		http.Error(w, "Auction already exists", http.StatusConflict)
+	
+	claims, ok := r.Context().Value(types.UserContextKey).(*types.UserClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	
+	req.UserID = claims.UserID
+	log.Println("USER ID:", req.UserID)
 
-	hub := app.HubManager.CreateHub(auctionId, createAuctionRequest.Title, createAuctionRequest.Description, createAuctionRequest.StartingPrice, createAuctionRequest.Increment, time.Duration(createAuctionRequest.Duration)*time.Hour)
+	if req.Increment <= 0 {
+		req.Increment = 100.0
+	}
+	if req.Duration <= 0 {
+		req.Duration = 1
+	}
+
+	tempAuctionID := uuid.New().String()
+	req.ID = tempAuctionID
+
+	hub := app.HubManager.CreateHub(
+		tempAuctionID,
+		req.Title,
+		req.Description,
+		req.StartingPrice,
+		req.Increment,
+		time.Duration(req.Duration)*time.Hour,
+	)
 	if hub == nil {
-		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
+		http.Error(w, "Failed to create auction hub", http.StatusInternalServerError)
 		return
 	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs,req.UserID)
+		if err != nil {
+			log.Printf("Failed to persist auction: %v", err)
+			return
+		}
+
+		app.HubManager.UpdateHubID(tempAuctionID, auction.ID)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":   true,
-		"auctionId": auctionId,
-		"message":   "Auction created successfully",
+		"auctionId": tempAuctionID,
+		"message":   "Auction created and published to WS successfully",
 		"data":      hub.GetAuctionData(),
 	})
 }
+
+
 
 func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
@@ -426,5 +453,19 @@ func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 		"success":   true,
 		"auctionId": auctionId,
 		"message":   "Auction deleted successfully",
+	})
+}
+
+
+func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
+	categories,err := 	app.Service.CategoryService.GetAllCategories(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get categories", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":true,"data":categories,"message":"Categories fetched successfully",
 	})
 }

@@ -243,3 +243,12 @@ func (m *HubManager) Stop() {
 
 	log.Printf("HubManager stopped")
 }
+func (m *HubManager) UpdateHubID(tempID, realID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if hub, ok := m.hubs[tempID]; ok {
+		delete(m.hubs, tempID)
+		m.hubs[realID] = hub
+	}
+}

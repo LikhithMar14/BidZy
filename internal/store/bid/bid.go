@@ -171,8 +171,6 @@ func (s *bidStore) GetUserBids(ctx context.Context, userID string) ([]*types.Bid
 	return userBids, nil
 }
 
-
-
 func (s *bidStore) GetBidCount(ctx context.Context, auctionID string) (int, error) {
 	query := `SELECT COUNT(*) as bid_count FROM bids WHERE auction_id = $1;`
 

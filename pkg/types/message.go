@@ -193,6 +193,7 @@ func NewAuctionDataMessage(auctionID string, data *AuctionData) *Message {
 
 
 type CreateAuctionRequest struct {
+	ID string `json:"id"`
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
 	StartingPrice float64 `json:"startingPrice"`
@@ -200,7 +201,7 @@ type CreateAuctionRequest struct {
 	Duration      int     `json:"durationHours"` 
 	UserID        string  `json:"userId"`
 	Image         string  `json:"image"`
-	CategoryID    string  `json:"categoryId"`
+	CategoryIDs    []int     `json:"categoryIds"`
 	StartDateTime time.Time `json:"startDateTime"`
 	EndDateTime   time.Time `json:"endDateTime"`
 	Status        string  `json:"status"`
@@ -247,6 +248,7 @@ type CreateAuctionResponse struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	User User `json:"user"`
-	CategoryID string `json:"categoryId"`
+	CategoryIDs []int `json:"categoryIds"`
+	Increment float64 `json:"increment"`
 	
 }

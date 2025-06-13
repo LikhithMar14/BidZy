@@ -252,3 +252,4 @@ func (m *HubManager) UpdateHubID(tempID, realID string) {
 		m.hubs[realID] = hub
 	}
 }
+

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -24,7 +26,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
-var oauthStateString,_ = utils.GenerateOAuthState(12)
+var oauthStateString, _ = utils.GenerateOAuthState(12)
 
 func (app *Application) Routes() *chi.Mux {
 	mux := chi.NewRouter()
@@ -37,6 +39,7 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Use(middleware.RequestID)
 	mux.Use(middleware.Timeout(60 * time.Second))
 
+	// Health check endpoint
 	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -47,16 +50,20 @@ func (app *Application) Routes() *chi.Mux {
 		})
 	})
 
+	// WebSocket routes - no auth middleware for WebSocket connections
+	// Token is passed as a query parameter and validated in the handler
 	mux.Get("/join-auction", app.JoinAuction)
 
+	// API routes
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/stats", app.GetStats)
 		r.Post("/register", app.RegisterUser)
 		r.Post("/login", app.LoginUser)
-		r.Get("/auth/google/login",app.GoogleLoginHandler)
-		r.Get("/auth/google/callback",app.GoogleCallbackHandler)
+		r.Get("/auth/google/login", app.GoogleLoginHandler)
+		r.Get("/auth/google/callback", app.GoogleCallbackHandler)
 		r.With(app.AuthMiddleware).Get("/about", app.AboutUser)
-		r.With(app.AuthMiddleware).Get("/categories",app.GetCategories)
+		r.With(app.AuthMiddleware).Get("/categories", app.GetCategories)
+
 		r.Route("/auctions", func(r chi.Router) {
 			r.Get("/", app.ListAuctions)
 			r.Get("/{auctionId}", app.GetAuctionData)
@@ -69,6 +76,7 @@ func (app *Application) Routes() *chi.Mux {
 
 	return mux
 }
+
 func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -77,10 +85,10 @@ func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{} {
-			"success":false,
-			"message":"Invalid request body",
-			"data":nil,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Invalid request body",
+			"data":    nil,
 		})
 		return
 	}
@@ -89,32 +97,32 @@ func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if strings.Contains(err.Error(), "user already exists") {
 			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]interface{} {
-				"success":false,
-				"message":"User already exists",
-				"data":nil,
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "User already exists",
+				"data":    nil,
 			})
 			return
 		}
 
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{} {
-			"success":false,
-			"message":"Internal server error",
-			"data":nil,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Internal server error",
+			"data":    nil,
 		})
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{} {
-		"success":true,
-		"data":userResponse,
-		"message":"User registered successfully",
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    userResponse,
+		"message": "User registered successfully",
 	})
 }
 
-func (app *Application) LoginUser(w http.ResponseWriter,r *http.Request) {
+func (app *Application) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
@@ -123,10 +131,10 @@ func (app *Application) LoginUser(w http.ResponseWriter,r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{} {
-			"success":false,
-			"message":"Invalid request body",
-			"data":nil,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Invalid request body",
+			"data":    nil,
 		})
 		return
 	}
@@ -136,37 +144,37 @@ func (app *Application) LoginUser(w http.ResponseWriter,r *http.Request) {
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid credentials") {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]interface{} {
-				"success":false,
-				"message":"Invalid credentials",
-				"data":nil,
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Invalid credentials",
+				"data":    nil,
 			})
 			return
 		}
 
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{} {
-			"success":false,
-			"message":"Internal server error",
-			"data":nil,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Internal server error",
+			"data":    nil,
 		})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{} {
-		"success":true,
-		"data":userResponse,
-		"message":"Login successful",
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    userResponse,
+		"message": "Login successful",
 	})
 }
 
-func (app *Application) GoogleLoginHandler(w http.ResponseWriter,r *http.Request) {
+func (app *Application) GoogleLoginHandler(w http.ResponseWriter, r *http.Request) {
 	url := app.Service.AuthService.GetGoogleLoginURL(oauthStateString)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func (app *Application) GoogleCallbackHandler(w http.ResponseWriter,r *http.Request) {
+func (app *Application) GoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("state") != oauthStateString {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
@@ -190,56 +198,57 @@ func (app *Application) AboutUser(w http.ResponseWriter, r *http.Request) {
 	user := ctx.Value(types.UserContextKey)
 	log.Println(user)
 	log.Println("I AM IN ABOUT USER 2")
-	json.NewEncoder(w).Encode(map[string]interface{} {
-		"success":true,
-			"data":user,
-			"message":"User about",
-		})
-	
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    user,
+		"message": "User about",
+	})
+
 }
 func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
-	auctionId := strings.TrimSpace(r.URL.Query().Get("auctionId"))
-	senderId := strings.TrimSpace(r.URL.Query().Get("senderId"))
+	fmt.Println("I AM IN JOIN AUCTION")
 
-	if auctionId == "" || senderId == "" {
-		app.Logger.Warnw("Missing required parameters",
-			"auctionId", auctionId,
-			"senderId", senderId,
-			"remoteAddr", r.RemoteAddr)
-		http.Error(w, "auctionId and senderId are required", http.StatusBadRequest)
+	auctionId := strings.TrimSpace(r.URL.Query().Get("auctionId"))
+	tokenString := strings.TrimSpace(r.URL.Query().Get("token"))
+
+	if auctionId == "" || tokenString == "" {
+		app.Logger.Warnw("Missing required parameters", "auctionId", auctionId, "token", "[redacted]")
+		return 
+	}
+
+
+	token, err := jwt.ParseWithClaims(tokenString, &types.UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(app.Config.JwtSecret), nil
+	})
+	if err != nil || !token.Valid {
+		app.Logger.Warnw("Invalid token", "error", err)
 		return
 	}
 
+	claims, ok := token.Claims.(*types.UserClaims)
+	if !ok || claims == nil {
+		app.Logger.Warnw("Invalid claims")
+		return
+	}
+
+	senderId := claims.UserID
+
 	if len(auctionId) > 50 || len(senderId) > 50 {
-		app.Logger.Warnw("Parameter length validation failed",
-			"auctionId", auctionId,
-			"senderId", senderId,
-			"remoteAddr", r.RemoteAddr)
-		http.Error(w, "Parameter length exceeds maximum allowed", http.StatusBadRequest)
+		app.Logger.Warnw("Parameter length too long", "auctionId", auctionId, "senderId", senderId)
+		return
+	}
+
+	hub := app.HubManager.GetHub(auctionId)
+	if hub == nil {
+		app.Logger.Errorw("Auction not found", "auctionId", auctionId)
+		http.Error(w, "Auction not found", http.StatusBadRequest)
+		fmt.Println("Auction not found")
 		return
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		app.Logger.Errorw("WebSocket upgrade failed",
-			"error", err,
-			"auctionId", auctionId,
-			"senderId", senderId,
-			"remoteAddr", r.RemoteAddr)
-		http.Error(w, "Failed to upgrade to websocket", http.StatusInternalServerError)
-		return
-	}
-
-	// if some one want join auction there should be an auction definetly
-
-	hub := app.HubManager.GetHub(auctionId)
-
-	if hub == nil {
-		app.Logger.Errorw("Auction not found",
-			"auctionId", auctionId,
-			"senderId", senderId)
-		http.Error(w, "Auction not found", http.StatusNotFound)
-		conn.Close()
+		app.Logger.Errorw("WebSocket upgrade failed", "error", err)
 		return
 	}
 
@@ -251,22 +260,18 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		Rdb:  app.Rdb,
 	}
 
-	app.Logger.Infow("New WebSocket connection",
-		"auctionId", auctionId,
-		"senderId", senderId,
-		"remoteAddr", r.RemoteAddr)
+	app.Logger.Infow("New WebSocket connection", "auctionId", auctionId, "senderId", senderId)
 
-	select {
+	select {	
 	case hub.Register <- client:
 		go client.WritePump()
 		go client.ReadPump()
 	case <-time.After(5 * time.Second):
-		app.Logger.Errorw("Timeout registering client",
-			"auctionId", auctionId,
-			"senderId", senderId)
+		app.Logger.Errorw("Timeout registering client", "auctionId", auctionId)
 		conn.Close()
 	}
 }
+
 
 func (app *Application) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats := app.HubManager.GetStats()
@@ -370,18 +375,17 @@ func (app *Application) GetAuctionBids(w http.ResponseWriter, r *http.Request) {
 func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 	var req types.CreateAuctionRequest
 
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	claims, ok := r.Context().Value(types.UserContextKey).(*types.UserClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	
+
 	req.UserID = claims.UserID
 	log.Println("USER ID:", req.UserID)
 
@@ -412,7 +416,7 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs,req.UserID)
+		auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
 		if err != nil {
 			log.Printf("Failed to persist auction: %v", err)
 			return
@@ -430,8 +434,6 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		"data":      hub.GetAuctionData(),
 	})
 }
-
-
 
 func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
@@ -456,9 +458,8 @@ func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
-	categories,err := 	app.Service.CategoryService.GetAllCategories(r.Context())
+	categories, err := app.Service.CategoryService.GetAllCategories(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get categories", http.StatusInternalServerError)
 		return
@@ -466,6 +467,6 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":true,"data":categories,"message":"Categories fetched successfully",
+		"success": true, "data": categories, "message": "Categories fetched successfully",
 	})
 }

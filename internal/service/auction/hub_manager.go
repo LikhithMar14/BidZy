@@ -43,9 +43,10 @@ func NewHubManager() *HubManager {
 		ctx:    ctx,
 		cancel: cancel,
 	}
-
-	go manager.cleanupLoop()
-
+	 if 1 == 2 {
+		//cleanup when auction ends
+		go manager.cleanupLoop()
+	 }
 	return manager
 }
 
@@ -108,7 +109,6 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
-
 	log.Printf("Created auction %s: %s", auctionId, title)
 	return hub
 }
@@ -122,6 +122,22 @@ func (m *HubManager) DeleteHub(auctionId string) {
 		delete(m.hubs, auctionId)
 		log.Printf("Hub %s deleted", auctionId)
 	}
+}
+
+func (m *HubManager) HandleAuctionEnd(auctionID string) {
+	go func() {
+		log.Printf("Auction %s ended. Scheduling hub deletion in 30 seconds...", auctionID)
+		time.Sleep(30 * time.Second)
+
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
+		if hub, exists := m.hubs[auctionID]; exists {
+			hub.Cancel()
+			delete(m.hubs, auctionID)
+			log.Printf("Hub %s deleted after auction end grace period", auctionID)
+		}
+	}()
 }
 
 func (m *HubManager) GetStats() string {
@@ -210,7 +226,6 @@ func (m *HubManager) performCleanup(inactivityThreshold time.Duration) {
 	for _, auctionID := range toDelete {
 		if hub, exists := m.hubs[auctionID]; exists {
 			hub.Cancel()
-			// See, here we are calling `hub.Cancel()`. I know that inside `Hub` we are not going to touch `m.mu.Lock()`."
 			delete(m.hubs, auctionID)
 			log.Printf("Cleaned up inactive hub %s", auctionID)
 		}
@@ -228,9 +243,6 @@ func (m *HubManager) Stop() {
 
 	m.cancel()
 
-	// Never call external functions (including cancel() or Cancel()) while holding a
-	// mutex unless you know exactly what they do and can guarantee they won’t try to acquire the same mutex or block forever.
-
 	m.mu.Lock()
 	for _, hub := range m.hubs {
 		hub.Cancel()
@@ -238,12 +250,9 @@ func (m *HubManager) Stop() {
 	m.hubs = make(map[string]*Hub)
 	m.mu.Unlock()
 
-	// We call hub.Cancel() inside the lock assuming it doesn't access m.mu.
-	// If it does, it can cause a deadlock since m.mu is already held.
-	// Refactor to cancel hubs outside the lock if future changes modify HubManager.
-
 	log.Printf("HubManager stopped")
 }
+
 func (m *HubManager) UpdateHubID(tempID, realID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -253,4 +262,3 @@ func (m *HubManager) UpdateHubID(tempID, realID string) {
 		m.hubs[realID] = hub
 	}
 }
-

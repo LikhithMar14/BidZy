@@ -30,9 +30,15 @@ type CategoryRepository interface {
 }
 
 type AuctionRepository interface {
-	CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.CreateAuctionResponse, error)
+	CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.AuctionData, error)
 	MarkAuctionsActive(ctx context.Context) error
 	MarkAuctionsEnded(ctx context.Context) error
+	GetAllAuctions(ctx context.Context)([]*types.AuctionData,error)
+	GetAuctionByID(ctx context.Context, auctionID string) (*types.AuctionData, error)
+	GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error)
+	AddCategoryToAuction(ctx context.Context, auctionID, categoryID string) error
+	RemoveCategoryFromAuction(ctx context.Context, auctionID, categoryID string) error
+	RemoveAllCategoriesFromAuction(ctx context.Context, auctionID string) error
 }
 
 type BidRepositotry interface {

@@ -46,7 +46,6 @@ type Message struct {
 	Success      bool          `json:"success,omitempty"`
 	Data         interface{}   `json:"data,omitempty"`
 }
-
 type AuctionData struct {
 	AuctionID     string    `json:"auctionId"`
 	Title         string    `json:"title,omitempty"`
@@ -56,9 +55,13 @@ type AuctionData struct {
 	HighestBidder string    `json:"highestBidder,omitempty"`
 	ClientCount   int       `json:"clientCount"`
 	IsActive      bool      `json:"isActive"`
+	Status        string    `json:"status"`
 	StartTime     time.Time `json:"startTime,omitempty"`
 	EndTime       time.Time `json:"endTime,omitempty"`
 	Increment     float64   `json:"increment"`
+	Image         string    `json:"image"`
+	User          User      `json:"user"`
+	CategoryIDs   []int     `json:"categoryIds"`
 }
 
 func (m *Message) IsValid() bool {
@@ -232,7 +235,13 @@ type Bid struct {
 	AuctionStatus string `json:"auctionStatus"`
 	AuctionEndDate time.Time `json:"auctionEndDate"`
 	AuctionImage string `json:"auctionImage"`
-
+	CategoryIDs []int `json:"categoryIds"`
+	Increment float64 `json:"increment"`
+	HighestBidder string `json:"highestBidder"`
+	HighestBid float64 `json:"highestBid"`
+	HighestBidderName string `json:"highestBidderName"`
+	HighestBidderID string `json:"highestBidderID"`
+	
 }
 
 type CreateAuctionResponse struct {

@@ -66,12 +66,15 @@ func (app *Application) Routes() *chi.Mux {
 
 		r.Route("/auctions", func(r chi.Router) {
 			r.Get("/", app.ListAuctions)
-			r.Get("/{auctionId}", app.GetAuctionData)
 			r.Get("/{auctionId}/clients", app.GetAuctionClients)
 			r.Get("/{auctionId}/bids", app.GetAuctionBids)
 			r.With(app.AuthMiddleware).Post("/{auctionId}/create", app.CreateAuction)
 			r.Delete("/{auctionId}", app.DeleteAuction)
+			r.Get("/user/{userId}", app.GetAuctionByUserID)
+			r.Get("/{auctionId}", app.GetAuctionByID)
 		})
+
+
 	})
 
 	return mux
@@ -282,7 +285,13 @@ func (app *Application) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) ListAuctions(w http.ResponseWriter, r *http.Request) {
-	stats := app.HubManager.GetAllAuctionData()
+	stats, err := app.Service.AuctionService.GetAllAuctions(r.Context())
+	log.Println("error", err)
+
+	if err != nil {
+		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -412,28 +421,30 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
-		if err != nil {
-			log.Printf("Failed to persist auction: %v", err)
-			return
-		}
+	auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
+	if err != nil {
+		log.Printf("Failed to persist auction: %v", err)
+		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
+		return
+	}
+	log.Println("AUCTION FROM HANDLER:", auction)
 
-		app.HubManager.UpdateHubID(tempAuctionID, auction.ID)
-	}()
+	app.HubManager.UpdateHubID(tempAuctionID, auction.AuctionID)
+
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":   true,
-		"auctionId": tempAuctionID,
+		"auctionId": auction.AuctionID,
 		"message":   "Auction created and published to WS successfully",
-		"data":      hub.GetAuctionData(),
+		"data":      auction,
 	})
 }
+
 
 func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
@@ -472,6 +483,49 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 }
 
 
-//http-testing
+func (app *Application) GetAuctionByID(w http.ResponseWriter, r *http.Request) {
+	auctionId := chi.URLParam(r, "auctionId")
+	if auctionId == "" {
+		http.Error(w, "Auction ID is required", http.StatusBadRequest)
+		return
+	}
 
+	auction, err := app.Service.AuctionService.GetAuctionByID(r.Context(), auctionId)
+	fmt.Println("AUCTION FROM HANDLER:", auction)
+	if err != nil {
+		http.Error(w, "Failed to get auction", http.StatusInternalServerError)
+		return	
+	}	
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true, "data": auction, "message": "Auction fetched successfully",
+	})
+}
+
+func (app *Application) GetAuctionByUserID(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(types.UserContextKey).(*types.UserClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userId := claims.UserID
+	if userId == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	auctions, err := app.Service.AuctionService.GetAuctionsByUserID(r.Context(), userId)
+	if err != nil {
+		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true, "data": auctions, "message": "Auctions fetched successfully",
+	})
+}

@@ -23,12 +23,16 @@ type CategoryService interface {
 }
 
 type AuctionService interface {
-	CreateAuction(ctx context.Context, req *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.CreateAuctionResponse, error)
-}
+	CreateAuction(ctx context.Context, req *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.AuctionData, error)
+	GetAllAuctions(ctx context.Context)([]*types.AuctionData,error)
+	GetAuctionByID(ctx context.Context, auctionID string) (*types.AuctionData, error)
+	GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error)
+
+	}
 
 type Service struct {
 	AuthService AuthService;
-	CategoryService CategoryService;
+	CategoryService CategoryService;		
 	AuctionService AuctionService;
 }
 
@@ -38,5 +42,6 @@ func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.
 
 		CategoryService: category.NewCategoryService(store.Category),
 		AuctionService: auction.NewAuctionHTTP(store.Auction),
+
 	}
 }

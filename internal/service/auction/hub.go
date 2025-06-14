@@ -12,7 +12,6 @@ import (
 )
 
 const (
-
 	ChannelTimeout      = 5 * time.Second
 	BroadcastTimeout    = 2 * time.Second
 	RegistrationTimeout = 3 * time.Second
@@ -45,7 +44,7 @@ type Hub struct {
 	EndTime       time.Time
 }
 
-func NewHub(auctionID string, increment float64,title string, description string, startingPrice int, duration time.Duration) *Hub {
+func NewHub(auctionID string, increment float64, title string, description string, startingPrice int, startDateTime time.Time, endDateTime time.Time, duration time.Duration) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Hub{
 		AuctionID:     auctionID,
@@ -100,15 +99,12 @@ func (h *Hub) handleClientRegistration(client *Client) {
 
 	log.Printf("Client %s joined auction %s (total clients: %d)", client.ID, h.AuctionID, clientCount)
 
-
 	userJoinedMsg := types.NewUserJoinedMessage(h.AuctionID, client.ID)
 	if data, err := json.Marshal(userJoinedMsg); err == nil {
 		h.broadcastToOthers(data, client.ID)
 	}
 
-
 	h.sendAuctionDataToClient(client)
-
 
 	if h.HighestBid != nil {
 		currentBidMsg := types.NewBidUpdateMessage(h.AuctionID, h.HighestBid.SenderID, h.HighestBid.Price)
@@ -182,7 +178,6 @@ func (h *Hub) handleBid(bid *Bid) {
 		minRequired = h.StartingPrice
 	}
 
-	
 	if h.HighestBid != nil && h.HighestBid.SenderID == bid.SenderID {
 		rejectionMsg := types.NewErrorMessage(h.AuctionID, "Cannot outbid yourself")
 		if data, err := json.Marshal(rejectionMsg); err == nil {
@@ -191,7 +186,6 @@ func (h *Hub) handleBid(bid *Bid) {
 		h.BidHistory = append(h.BidHistory, bid)
 		return
 	}
-
 
 	if bid.Price >= minRequired {
 		h.HighestBid = bid
@@ -207,7 +201,6 @@ func (h *Hub) handleBid(bid *Bid) {
 		log.Printf("New highest bid in auction %s: $%.2f by %s", h.AuctionID, bid.Price, bid.SenderID)
 		return
 	}
-
 
 	h.BidHistory = append(h.BidHistory, bid)
 
@@ -225,7 +218,6 @@ func (h *Hub) handleBid(bid *Bid) {
 	log.Printf("Bid rejected in auction %s: $%.2f by %s (current: $%.2f, required: $%.2f)",
 		h.AuctionID, bid.Price, bid.SenderID, currentPrice, minRequired)
 }
-
 
 func (h *Hub) broadcastUnsafe(message []byte) {
 	log.Printf("Broadcasting message to clients: %s", string(message))
@@ -351,32 +343,32 @@ func (h *Hub) GetLastActive() time.Time {
 }
 
 func (h *Hub) GetAuctionData() *types.AuctionData {
-    h.mu.RLock()
-    defer h.mu.RUnlock()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 
-    currentPrice := h.StartingPrice
-    var highestBidder string
-    
-    if h.HighestBid != nil {
-        currentPrice = h.HighestBid.Price
-        highestBidder = h.HighestBid.SenderID
-    }
+	currentPrice := h.StartingPrice
+	var highestBidder string
 
-    auctionData := &types.AuctionData{
-        AuctionID:     h.AuctionID,
-        Title:         h.Title,
-        Description:   h.Description,
-        StartingPrice: h.StartingPrice,
-        CurrentPrice:  currentPrice,
-        HighestBidder: highestBidder,
-        ClientCount:   len(h.Clients),
-        IsActive:      h.IsActive && time.Now().Before(h.EndTime),
-        StartTime:     h.StartTime,
-        EndTime:       h.EndTime,
-        Increment:     h.Increment,
-    }
+	if h.HighestBid != nil {
+		currentPrice = h.HighestBid.Price
+		highestBidder = h.HighestBid.SenderID
+	}
 
-    return auctionData
+	auctionData := &types.AuctionData{
+		AuctionID:     h.AuctionID,
+		Title:         h.Title,
+		Description:   h.Description,
+		StartingPrice: h.StartingPrice,
+		CurrentPrice:  currentPrice,
+		HighestBidder: highestBidder,
+		ClientCount:   len(h.Clients),
+		IsActive:      h.IsActive && time.Now().Before(h.EndTime),
+		StartTime:     h.StartTime,
+		EndTime:       h.EndTime,
+		Increment:     h.Increment,
+	}
+
+	return auctionData
 }
 func (h *Hub) Cancel() {
 	log.Printf("Cancelling hub %s", h.AuctionID)
@@ -400,7 +392,7 @@ func (h *Hub) GetClientInfo() []ClientInfo {
 	for client := range h.Clients {
 		clientList = append(clientList, ClientInfo{
 			ID:       client.ID,
-			JoinedAt: time.Now(),	
+			JoinedAt: time.Now(),
 			IsActive: true,
 		})
 	}
@@ -410,7 +402,6 @@ func (h *Hub) GetClientInfo() []ClientInfo {
 func (h *Hub) GetBidHistory() []*Bid {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-
 
 	history := make([]*Bid, len(h.BidHistory))
 	copy(history, h.BidHistory)

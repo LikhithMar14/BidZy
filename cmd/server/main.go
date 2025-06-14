@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/LikhithMar14/BidZy/internal/handler"
 	"github.com/LikhithMar14/BidZy/internal/migrations"
@@ -15,7 +13,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-
 )
 
 const Version = "1.0.0"
@@ -58,6 +55,7 @@ func main() {
 	if err != nil {
 		logger.Fatalw("failed to migrate database", "error", err)
 	}
+
 	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction)
 	auctionScheduler.Start()
 
@@ -67,26 +65,11 @@ func main() {
 		"maxIdleConns", cfg.Db.MaxIdleConns,
 		"maxLifetime", cfg.Db.MaxLifetime.String())
 
+	// Create the application and get the server
 	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient)
-
 	mux := app.Routes()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		sig := <-sigChan
-		logger.Infow("received shutdown signal", "signal", sig)
-
-		hubManager.Stop()
-
-		if err := rdb.Close(); err != nil {
-			logger.Errorw("failed to close Redis connection", "error", err)
-		}
-
-		logger.Info("graceful shutdown completed")
-		os.Exit(0)
-	}()
-
-	logger.Fatal(app.Server(mux))
+	if err := app.Server(mux); err != nil {
+		logger.Errorw("server exited with error", "error", err)
+	}
 }

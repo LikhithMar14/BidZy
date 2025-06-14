@@ -3,6 +3,7 @@ package auction
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -43,11 +44,12 @@ func NewHubManager() *HubManager {
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	 if 1 == 2 {
-		//cleanup when auction ends
-		go manager.cleanupLoop()
-	 }
+
+	// 	//cleanup when auction ends
+	go manager.cleanupLoop()
+
 	return manager
+
 }
 
 func (m *HubManager) GetHub(auctionId string) *Hub {
@@ -56,7 +58,7 @@ func (m *HubManager) GetHub(auctionId string) *Hub {
 	return m.hubs[auctionId]
 }
 
-func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title string, description string, startingPrice int, duration time.Duration) *Hub {
+func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title string, description string, startingPrice int, startDateTime time.Time, endDateTime time.Time, duration time.Duration) *Hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -71,7 +73,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	}
 
 	log.Printf("Creating new hub for auction %s", auctionId)
-	hub := NewHub(auctionId, increment, title, description, startingPrice, duration)
+	hub := NewHub(auctionId, increment, title, description, startingPrice, startDateTime, endDateTime, duration)
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
@@ -84,7 +86,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	return hub
 }
 
-func (m *HubManager) CreateHub(auctionId, title, description string, startingPrice, increment float64, duration time.Duration) *Hub {
+func (m *HubManager) CreateHub(auctionId, title, description string, startingPrice, increment float64, startDateTime time.Time, endDateTime time.Time, duration time.Duration) *Hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -99,15 +101,18 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	}
 
 	log.Printf("Creating new hub for auction %s with custom config", auctionId)
-	hub := NewHub(auctionId, increment, title, description, int(startingPrice), duration)
+	hub := NewHub(auctionId, increment, title, description, int(startingPrice), startDateTime, endDateTime, duration)
 
 	hub.Title = title
 	hub.Description = description
 	hub.StartingPrice = startingPrice
-	hub.EndTime = hub.StartTime.Add(duration)
+	hub.EndTime = endDateTime
+	hub.StartTime = startDateTime
 
 	m.hubs[auctionId] = hub
 	go hub.Run()
+
+	fmt.Println("Hub:", hub)
 
 	log.Printf("Created auction %s: %s", auctionId, title)
 	return hub
@@ -209,15 +214,17 @@ func (m *HubManager) performCleanup(inactivityThreshold time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	now := time.Now()
+	now := time.Now().UTC()
 	toDelete := make([]string, 0)
 
 	for auctionID, hub := range m.hubs {
-		if hub.GetClientCount() == 0 {
+		if now.Before(hub.StartTime) {
+			continue
+		}
+		if hub.GetClientCount() == 0 && now.After(hub.EndTime) {
 			lastActive := hub.GetLastActive()
-			if now.Sub(lastActive) > inactivityThreshold {
-				log.Printf("Marking inactive hub %s for cleanup (last active %v ago)",
-					auctionID, now.Sub(lastActive))
+			if lastActive.IsZero() || now.Sub(lastActive) > inactivityThreshold {
+				log.Printf("Marking hub %s for cleanup", auctionID)
 				toDelete = append(toDelete, auctionID)
 			}
 		}

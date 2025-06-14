@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -73,7 +72,6 @@ func (app *Application) Routes() *chi.Mux {
 			r.Get("/user/{userId}", app.GetAuctionByUserID)
 			r.Get("/{auctionId}", app.GetAuctionByID)
 		})
-
 
 	})
 
@@ -216,9 +214,8 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 
 	if auctionId == "" || tokenString == "" {
 		app.Logger.Warnw("Missing required parameters", "auctionId", auctionId, "token", "[redacted]")
-		return 
+		return
 	}
-
 
 	token, err := jwt.ParseWithClaims(tokenString, &types.UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(app.Config.JwtSecret), nil
@@ -265,7 +262,7 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 
 	app.Logger.Infow("New WebSocket connection", "auctionId", auctionId, "senderId", senderId)
 
-	select {	
+	select {
 	case hub.Register <- client:
 		go client.WritePump()
 		go client.ReadPump()
@@ -274,7 +271,6 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 	}
 }
-
 
 func (app *Application) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats := app.HubManager.GetStats()
@@ -404,16 +400,27 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 	if req.Duration <= 0 {
 		req.Duration = 1
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	tempAuctionID := uuid.New().String()
-	req.ID = tempAuctionID
+	auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
+
+	if err != nil {
+		log.Printf("Failed to persist auction: %v", err)
+		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
+		return
+	}
+	fmt.Println("AUCTION FROM HANDLER:", auction)
+	fmt.Println("++Auction ID:++", auction.AuctionID)
 
 	hub := app.HubManager.CreateHub(
-		tempAuctionID,
+		auction.AuctionID,
 		req.Title,
 		req.Description,
 		req.StartingPrice,
 		req.Increment,
+		req.StartDateTime,
+		req.EndDateTime,
 		time.Duration(req.Duration)*time.Hour,
 	)
 	if hub == nil {
@@ -421,19 +428,7 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
-	if err != nil {
-		log.Printf("Failed to persist auction: %v", err)
-		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
-		return
-	}
 	log.Println("AUCTION FROM HANDLER:", auction)
-
-	app.HubManager.UpdateHubID(tempAuctionID, auction.AuctionID)
-
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -444,7 +439,6 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		"data":      auction,
 	})
 }
-
 
 func (app *Application) DeleteAuction(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
@@ -482,7 +476,6 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 func (app *Application) GetAuctionByID(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
 	if auctionId == "" {
@@ -494,8 +487,8 @@ func (app *Application) GetAuctionByID(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("AUCTION FROM HANDLER:", auction)
 	if err != nil {
 		http.Error(w, "Failed to get auction", http.StatusInternalServerError)
-		return	
-	}	
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -522,7 +515,7 @@ func (app *Application) GetAuctionByUserID(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{

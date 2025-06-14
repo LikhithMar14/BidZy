@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"github.com/LikhithMar14/BidZy/pkg/types"
+	"log"
 )
 
 type auctionStore struct {
@@ -29,20 +29,18 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	defer tx.Rollback()
 
 	insertAuctionQuery := `
-        INSERT INTO auctions (
-            id, title, description, starting_price, current_price,
-            increment, start_date, end_date, status, image, user_id
-        )
-        VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, title, description, starting_price, current_price,
-          start_date, end_date, increment, status, image, user_id;
-
-    `
+		INSERT INTO auctions (
+			title, description, starting_price, current_price,
+			increment, start_date, end_date, status, image, user_id
+		)
+		VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, title, description, starting_price, current_price,
+		          start_date, end_date, increment, status, image, user_id;
+	`
 
 	var newAuction types.AuctionData
 
 	err = tx.QueryRowContext(ctx, insertAuctionQuery,
-		auction.ID,
 		auction.Title,
 		auction.Description,
 		auction.StartingPrice,
@@ -68,7 +66,7 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert auction: %w", err)
 	}
-	fmt.Println("++++STATUS++++", newAuction.Status)
+
 	newAuction.IsActive = newAuction.Status == "ACTIVE"
 	newAuction.ClientCount = 0
 	newAuction.HighestBidder = ""
@@ -76,28 +74,27 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	// Insert into junction table
 	if len(categoryIDs) > 0 {
 		insertCategoryQuery := `
-            INSERT INTO auction_categories (auction_id, category_id)
-            VALUES ($1, $2);
-        `
+			INSERT INTO auction_categories (auction_id, category_id)
+			VALUES ($1, $2);
+		`
 		for _, categoryID := range categoryIDs {
-			if _, err := tx.ExecContext(ctx, insertCategoryQuery, auction.ID, categoryID); err != nil {
+			if _, err := tx.ExecContext(ctx, insertCategoryQuery, newAuction.AuctionID, categoryID); err != nil {
 				return nil, fmt.Errorf("failed to insert category: %w", err)
 			}
 		}
 	}
 	log.Println("AUCTION FROM STORAGE LAYER:", newAuction)
 
-
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
-	// Fetch user info
+	// ✅ Corrected user fetch query
 	userQuery := `
-        SELECT id, user_name, email, created_at, updated_at 
-        FROM users WHERE id = $1
-    `
+		SELECT id, user_name, email, created_at, updated_at 
+		FROM users WHERE id = $1
+	`
 	err = s.db.QueryRowContext(ctx, userQuery, userID).Scan(
 		&newAuction.User.ID,
 		&newAuction.User.UserName,
@@ -129,11 +126,10 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating categories: %w", err)
 	}
-	fmt.Println("++++NEW AUCTION++++", newAuction)
 
+	fmt.Println("++++NEW AUCTION++++", newAuction)
 	return &newAuction, nil
 }
-
 
 
 func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
@@ -148,7 +144,7 @@ func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to mark auctions active: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -163,10 +159,9 @@ func (s *auctionStore) MarkAuctionsEnded(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to mark auctions ended: %w", err)
 	}
-	
+
 	return nil
 }
-
 
 func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData, error) {
 	query := `
@@ -265,7 +260,7 @@ func (s *auctionStore) populateAuctionCategories(ctx context.Context, auctions [
 	// Create a map of auction ID to auction for quick lookup
 	auctionMap := make(map[string]*types.AuctionData)
 	auctionIDs := make([]interface{}, len(auctions))
-	
+
 	for i, auction := range auctions {
 		auctionMap[auction.AuctionID] = auction
 		auctionIDs[i] = auction.AuctionID
@@ -298,7 +293,7 @@ func (s *auctionStore) populateAuctionCategories(ctx context.Context, auctions [
 		if err := rows.Scan(&auctionID, &categoryID); err != nil {
 			return err
 		}
-		
+
 		if auction, exists := auctionMap[auctionID]; exists {
 			auction.CategoryIDs = append(auction.CategoryIDs, categoryID)
 		}

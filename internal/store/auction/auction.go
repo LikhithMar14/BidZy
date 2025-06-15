@@ -258,12 +258,12 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		return auctions, nil
 	}
 
-	// === Populate category IDs ===
+
 	if err := s.populateAuctionCategories(ctx, auctions); err != nil {
 		return nil, fmt.Errorf("failed to populate categories: %w", err)
 	}
 
-	// === Fetch participants ===
+	
 	participantQuery := `
 		SELECT DISTINCT b.auction_id, u.id, u.user_name, u.email, u.created_at, u.updated_at
 		FROM bids b
@@ -293,7 +293,7 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		}
 	}
 
-	// === Set client count ===
+	
 	for _, auction := range auctions {
 		auction.ClientCount = len(auction.Participants)
 	}

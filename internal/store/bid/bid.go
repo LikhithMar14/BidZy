@@ -132,8 +132,7 @@ func (s *bidStore) GetHighestBidForAuction(ctx context.Context, auctionID string
 func (s *bidStore) GetUserBids(ctx context.Context, userID string) ([]*types.Bid, error) {
 	query := `
 		SELECT b.id, b.amount, b.created_at, 
-		       a.id as auction_id, a.title as auction_title, a.status as auction_status,
-		       a.end_date, a.image as auction_image
+		       a.id as auction_id
 		FROM bids b
 		JOIN auctions a ON b.auction_id = a.id
 		WHERE b.user_id = $1
@@ -153,10 +152,7 @@ func (s *bidStore) GetUserBids(ctx context.Context, userID string) ([]*types.Bid
 			&userBid.Amount,
 			&userBid.CreatedAt,
 			&userBid.AuctionID,
-			&userBid.AuctionTitle,
-			&userBid.AuctionStatus,
-			&userBid.AuctionEndDate,
-			&userBid.AuctionImage,
+			
 		)
 		if err != nil {
 			return nil, err

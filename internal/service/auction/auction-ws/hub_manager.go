@@ -1,4 +1,4 @@
-package auction
+package auction_ws
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	auction"github.com/LikhithMar14/BidZy/internal/service/auction"
 	types "github.com/LikhithMar14/BidZy/pkg/types"
 )
 
@@ -58,7 +59,7 @@ func (m *HubManager) GetHub(auctionId string) *Hub {
 	return m.hubs[auctionId]
 }
 
-func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title string, description string, startingPrice int, startDateTime time.Time, endDateTime time.Time, duration time.Duration) *Hub {
+func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title string, description string, startingPrice int, startDateTime time.Time, endDateTime time.Time, duration time.Duration, auctionService *auction.AuctionHTTP) *Hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -73,7 +74,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	}
 
 	log.Printf("Creating new hub for auction %s", auctionId)
-	hub := NewHub(auctionId, increment, title, description, startingPrice, startDateTime, endDateTime, duration)
+	hub := NewHub(auctionId, increment, title, description, startingPrice, startDateTime, endDateTime, duration, auctionService)
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
@@ -86,7 +87,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	return hub
 }
 
-func (m *HubManager) CreateHub(auctionId, title, description string, startingPrice, increment float64, startDateTime time.Time, endDateTime time.Time, duration time.Duration) *Hub {
+func (m *HubManager) CreateHub(auctionId, title, description string, startingPrice, increment float64, startDateTime time.Time, endDateTime time.Time, duration time.Duration, auctionService *auction.AuctionHTTP) *Hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -101,7 +102,7 @@ func (m *HubManager) CreateHub(auctionId, title, description string, startingPri
 	}
 
 	log.Printf("Creating new hub for auction %s with custom config", auctionId)
-	hub := NewHub(auctionId, increment, title, description, int(startingPrice), startDateTime, endDateTime, duration)
+	hub := NewHub(auctionId, increment, title, description, int(startingPrice), startDateTime, endDateTime, duration, auctionService)
 
 	hub.Title = title
 	hub.Description = description

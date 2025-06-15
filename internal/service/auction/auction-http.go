@@ -9,11 +9,13 @@ import (
 
 type AuctionHTTP struct {
 	store store.AuctionRepository
+	bidStore store.BidRepositotry
 }
 
-func NewAuctionHTTP(store store.AuctionRepository) *AuctionHTTP {
+func NewAuctionHTTP(store store.AuctionRepository, bidStore store.BidRepositotry) *AuctionHTTP {
 	return &AuctionHTTP{
 		store: store,
+		bidStore: bidStore,
 	}
 }
 
@@ -49,3 +51,12 @@ func (a *AuctionHTTP) GetAllAuctions(ctx context.Context) ([]*types.AuctionData,
 	}
 	return auctions, nil
 }
+func (a *AuctionHTTP) AddBid(ctx context.Context, bid *types.NewBidRequest) (*types.NewBidResponse, error) {
+	bidResponse, err := a.bidStore.PlaceBid(ctx, bid)		
+	if err != nil {
+		return nil, err
+	}
+	return bidResponse, nil
+}
+
+

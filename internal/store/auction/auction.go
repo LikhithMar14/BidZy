@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/LikhithMar14/BidZy/pkg/types"
 	"log"
+
+	"github.com/LikhithMar14/BidZy/pkg/types"
+
 )
 
 type auctionStore struct {
@@ -166,14 +168,24 @@ func (s *auctionStore) MarkAuctionsEnded(ctx context.Context) error {
 func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData, error) {
 	query := `
 		SELECT 
-			a.id, a.title, a.description, a.starting_price, a.current_price,
-			a.start_date, a.end_date, a.status, 
-			COALESCE(a.increment, 100) as increment, 
+			a.id, a.title, a.description, a.starting_price,
+			COALESCE((
+				SELECT MAX(b.amount) FROM bids b WHERE b.auction_id = a.id
+			), a.starting_price) as current_price,
+			a.start_date, a.end_date, a.status,
+			COALESCE(a.increment, 100) as increment,
 			a.image,
-			u.id, u.user_name, u.email, u.created_at, u.updated_at
+			u.id, u.user_name, u.email, u.created_at, u.updated_at,
+			(
+				SELECT b.user_id
+				FROM bids b
+				WHERE b.auction_id = a.id
+				ORDER BY b.amount DESC, b.created_at ASC
+				LIMIT 1
+			) as highest_bidder
 		FROM auctions a
 		LEFT JOIN users u ON a.user_id = u.id
-		ORDER BY a.created_at DESC
+		ORDER BY a.created_at DESC;
 	`
 
 	rows, err := s.db.QueryContext(ctx, query)
@@ -183,11 +195,12 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 	defer rows.Close()
 
 	var auctions []*types.AuctionData
+	auctionMap := make(map[string]*types.AuctionData)
 
 	for rows.Next() {
 		var auction types.AuctionData
 		var status string
-		var userID, userName, userEmail sql.NullString
+		var userID, userName, userEmail, highestBidder sql.NullString
 		var userCreatedAt, userUpdatedAt sql.NullTime
 
 		err := rows.Scan(
@@ -206,16 +219,19 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 			&userEmail,
 			&userCreatedAt,
 			&userUpdatedAt,
+			&highestBidder,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan auction row: %w", err)
 		}
 
-		// Set status and isActive
 		auction.Status = status
 		auction.IsActive = status == "ACTIVE"
 
-		// Set user info if present
+		if highestBidder.Valid {
+			auction.HighestBidder = highestBidder.String
+		}
+
 		if userID.Valid {
 			auction.User = types.User{
 				ID:        userID.String,
@@ -226,30 +242,65 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 			}
 		}
 
-		// Set defaults for client count and highest bidder
+		auction.Participants = []types.User{}
 		auction.ClientCount = 0
-		auction.HighestBidder = ""
-
-		// Empty category slice (filled later)
 		auction.CategoryIDs = []int{}
 
 		auctions = append(auctions, &auction)
+		auctionMap[auction.AuctionID] = &auction
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating auction rows: %w", err)
 	}
 
-	// Efficiently populate category IDs
-	if len(auctions) > 0 {
-		err = s.populateAuctionCategories(ctx, auctions)
+	if len(auctions) == 0 {
+		return auctions, nil
+	}
+
+	// === Populate category IDs ===
+	if err := s.populateAuctionCategories(ctx, auctions); err != nil {
+		return nil, fmt.Errorf("failed to populate categories: %w", err)
+	}
+
+	// === Fetch participants ===
+	participantQuery := `
+		SELECT DISTINCT b.auction_id, u.id, u.user_name, u.email, u.created_at, u.updated_at
+		FROM bids b
+		JOIN users u ON b.user_id = u.id
+		WHERE b.auction_id = ANY($1);
+	`
+	auctionIDs := make([]string, 0, len(auctions))
+	for _, auction := range auctions {
+		auctionIDs = append(auctionIDs, auction.AuctionID)
+	}
+
+	partRows, err := s.db.QueryContext(ctx, participantQuery, auctionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch participants: %w", err)
+	}
+	defer partRows.Close()
+
+	for partRows.Next() {
+		var auctionID string
+		var user types.User
+		err := partRows.Scan(&auctionID, &user.ID, &user.UserName, &user.Email, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to populate categories: %w", err)
+			return nil, fmt.Errorf("failed to scan participant: %w", err)
 		}
+		if auction, ok := auctionMap[auctionID]; ok {
+			auction.Participants = append(auction.Participants, user)
+		}
+	}
+
+	// === Set client count ===
+	for _, auction := range auctions {
+		auction.ClientCount = len(auction.Participants)
 	}
 
 	return auctions, nil
 }
+
 
 // Helper function to populate categories for multiple auctions efficiently
 func (s *auctionStore) populateAuctionCategories(ctx context.Context, auctions []*types.AuctionData) error {
@@ -317,22 +368,35 @@ func (s *auctionStore) AddCategoryToAuction(ctx context.Context, auctionID, cate
 
 func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*types.AuctionData, error) {
 	query := `
-		SELECT 
-			a.id, a.title, a.description, a.starting_price, a.current_price, 
-			a.start_date, a.end_date, a.status, 
-			COALESCE(a.increment, 100) as increment, 
-			a.image,
-			u.id, u.user_name, u.email, u.created_at, u.updated_at
-		FROM auctions a
-		LEFT JOIN users u ON a.user_id = u.id
-		WHERE a.id = $1;
+	SELECT 
+		a.id, a.title, a.description, a.starting_price,
+		COALESCE((
+			SELECT MAX(b.amount)
+			FROM bids b
+			WHERE b.auction_id = a.id
+		), a.starting_price) AS current_price,
+		a.start_date, a.end_date, a.status, 
+		COALESCE(a.increment, 100) as increment, 
+		a.image,
+		u.id, u.user_name, u.email, u.created_at, u.updated_at,
+		(
+			SELECT b.user_id
+			FROM bids b
+			WHERE b.auction_id = a.id
+			ORDER BY b.amount DESC, b.created_at ASC
+			LIMIT 1
+		) AS highest_bidder
+	FROM auctions a
+	LEFT JOIN users u ON a.user_id = u.id
+	WHERE a.id = $1;
 	`
 
 	row := s.db.QueryRowContext(ctx, query, auctionID)
+
 	var auction types.AuctionData
-	var status string
 	var userID, userName, userEmail sql.NullString
 	var userCreatedAt, userUpdatedAt sql.NullTime
+	var highestBidder sql.NullString
 
 	err := row.Scan(
 		&auction.AuctionID,
@@ -350,6 +414,7 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 		&userEmail,
 		&userCreatedAt,
 		&userUpdatedAt,
+		&highestBidder,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -358,10 +423,12 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 		return nil, fmt.Errorf("failed to scan auction: %w", err)
 	}
 
-	auction.IsActive = status == "ACTIVE"
-	auction.ClientCount = 0 // Initialize
+	auction.IsActive = auction.Status == "ACTIVE"
 
-	// Handle nullable user fields
+	if highestBidder.Valid {
+		auction.HighestBidder = highestBidder.String
+	}
+
 	if userID.Valid {
 		auction.User = types.User{
 			ID:        userID.String,
@@ -370,33 +437,60 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 			CreatedAt: userCreatedAt.Time,
 			UpdatedAt: userUpdatedAt.Time,
 		}
-	} else {
-		auction.User = types.User{}
 	}
 
-	// Fetch categories
+	// Fetch category IDs
 	categoryQuery := `SELECT category_id FROM auction_categories WHERE auction_id = $1;`
-	rows, err := s.db.QueryContext(ctx, categoryQuery, auctionID)
+	catRows, err := s.db.QueryContext(ctx, categoryQuery, auctionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query categories: %w", err)
 	}
-	defer rows.Close()
+	defer catRows.Close()
 
-	auction.CategoryIDs = []int{} // Initialize empty slice
-	for rows.Next() {
+	auction.CategoryIDs = []int{}
+	for catRows.Next() {
 		var cid int
-		if err := rows.Scan(&cid); err != nil {
+		if err := catRows.Scan(&cid); err != nil {
 			return nil, fmt.Errorf("failed to scan category: %w", err)
 		}
 		auction.CategoryIDs = append(auction.CategoryIDs, cid)
 	}
-
-	if err = rows.Err(); err != nil {
+	if err := catRows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating categories: %w", err)
 	}
 
+	// Fetch full participant user objects
+	participantQuery := `
+	SELECT DISTINCT u.id, u.user_name, u.email, u.created_at, u.updated_at
+	FROM bids b
+	JOIN users u ON b.user_id = u.id
+	WHERE b.auction_id = $1;
+	`
+	partRows, err := s.db.QueryContext(ctx, participantQuery, auctionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query participants: %w", err)
+	}
+	defer partRows.Close()
+
+	auction.Participants = []types.User{}
+	for partRows.Next() {
+		var u types.User
+		err := partRows.Scan(&u.ID, &u.UserName, &u.Email, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan participant: %w", err)
+		}
+		auction.Participants = append(auction.Participants, u)
+	}
+	if err := partRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating participants: %w", err)
+	}
+
+	auction.ClientCount = len(auction.Participants)
+
 	return &auction, nil
 }
+
+
 
 func (s *auctionStore) GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error) {
 	query := `

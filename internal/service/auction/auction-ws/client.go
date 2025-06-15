@@ -1,7 +1,8 @@
-package auction
+package auction_ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -99,6 +100,7 @@ func (c *Client) handleMessage(msg *types.Message) {
 func (c *Client) handleAuctionMessage(msg *types.Message) {
 	switch msg.Action {
 	case types.ActionJoin:
+		log.Println("I AM HERE IN JOIN ACTION")
 		log.Printf("Client %s joined auction %s", msg.SenderID, msg.AuctionID)
 		c.sendSuccessMessage("Successfully joined auction")
 
@@ -171,7 +173,7 @@ func (c *Client) handlePingMessage(msg *types.Message) {
 
 func (c *Client) sendAuctionData() {
 	auctionData := c.Hub.GetAuctionData()
-	auctionDataMsg := types.NewAuctionDataMessage(c.Hub.AuctionID, auctionData)
+	auctionDataMsg := types.NewAuctionDataMessage(c.Hub.AuctionID, auctionData, c.ID)
 
 	if data, err := json.Marshal(auctionDataMsg); err == nil {
 		select {
@@ -264,6 +266,7 @@ func (c *Client) sendErrorMessage(content string) {
 }
 
 func (c *Client) sendSuccessMessage(content string) {
+	fmt.Println("Sending success message to client", c)
 	successMsg := types.NewSuccessMessage(c.Hub.AuctionID, content)
 	successMsg.SenderID = c.ID
 

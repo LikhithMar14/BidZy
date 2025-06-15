@@ -7,7 +7,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/handler"
 	"github.com/LikhithMar14/BidZy/internal/migrations"
 	"github.com/LikhithMar14/BidZy/internal/scheduler"
-	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	auction_ws "github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	db "github.com/LikhithMar14/BidZy/internal/store/database"
 	"github.com/joho/godotenv"
@@ -40,7 +40,7 @@ func main() {
 		DB:       0,
 	})
 
-	hubManager := auction.NewHubManager()
+	hubManager := auction_ws.NewHubManager()
 	fmt.Println(cfg.Db.Addr)
 
 	database, err := db.Open(cfg.Db.Addr, cfg.Db.MaxOpenConns, cfg.Db.MaxIdleConns, cfg.Db.MaxLifetime.String())

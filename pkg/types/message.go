@@ -1,8 +1,11 @@
 package types
 
-import "slices"
-
-import "time"
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+)
 
 type MessageType string
 
@@ -62,6 +65,7 @@ type AuctionData struct {
 	Image         string    `json:"image"`
 	User          User      `json:"user"`
 	CategoryIDs   []int     `json:"categoryIds"`
+	Participants  []User  `json:"participants"`
 }
 
 func (m *Message) IsValid() bool {
@@ -155,10 +159,11 @@ func NewSuccessMessage(auctionID, content string) *Message {
 }
 
 func NewUserJoinedMessage(auctionID, userID string) *Message {
+	fmt.Println("NewUserJoinedMessage", auctionID, userID)
 	return &Message{
 		Type:      TypeUserJoined,
 		AuctionID: auctionID,
-		SenderID:  userID,
+		SenderID:  strings.TrimSpace(userID),
 		Content:   userID + " joined the auction",
 		Timestamp: time.Now(),
 	}
@@ -185,10 +190,14 @@ func NewBidUpdateMessage(auctionID, bidderID string, price float64) *Message {
 	}
 }
 
-func NewAuctionDataMessage(auctionID string, data *AuctionData) *Message {
+func NewAuctionDataMessage(auctionID string, data *AuctionData, senderID string) *Message {
+	fmt.Println("NewAuctionDataMessage", auctionID, data)
+	fmt.Println("SENDING AUCTION DATA TO CLIENT")
+	fmt.Println("DATA", data)
 	return &Message{
 		Type:      TypeAuctionData,
 		AuctionID: auctionID,
+		SenderID:  senderID,
 		Data:      data,
 		Timestamp: time.Now(),
 	}
@@ -231,17 +240,6 @@ type Bid struct {
 	SenderID string `json:"senderId"`
 	AuctionID string `json:"auctionId"`
 	BidderName string `json:"bidderName"`
-	AuctionTitle string `json:"auctionTitle"`
-	AuctionStatus string `json:"auctionStatus"`
-	AuctionEndDate time.Time `json:"auctionEndDate"`
-	AuctionImage string `json:"auctionImage"`
-	CategoryIDs []int `json:"categoryIds"`
-	Increment float64 `json:"increment"`
-	HighestBidder string `json:"highestBidder"`
-	HighestBid float64 `json:"highestBid"`
-	HighestBidderName string `json:"highestBidderName"`
-	HighestBidderID string `json:"highestBidderID"`
-	
 }
 
 type CreateAuctionResponse struct {

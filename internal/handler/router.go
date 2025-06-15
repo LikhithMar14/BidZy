@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	auction_ws "github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
 	"github.com/LikhithMar14/BidZy/pkg/types"
 	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/go-chi/chi/v5"
@@ -49,8 +50,6 @@ func (app *Application) Routes() *chi.Mux {
 		})
 	})
 
-	// WebSocket routes - no auth middleware for WebSocket connections
-	// Token is passed as a query parameter and validated in the handler
 	mux.Get("/join-auction", app.JoinAuction)
 
 	// API routes
@@ -238,21 +237,41 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Try to get hub, or lazily initialize if it doesn't exist
 	hub := app.HubManager.GetHub(auctionId)
 	if hub == nil {
-		app.Logger.Errorw("Auction not found", "auctionId", auctionId)
-		http.Error(w, "Auction not found", http.StatusBadRequest)
-		fmt.Println("Auction not found")
-		return
-	}
+		auctionData, err := app.Service.AuctionService.GetAuctionByID(r.Context(), auctionId)
+		if err != nil || auctionData.Status != "ACTIVE" || time.Now().After(auctionData.EndTime) {
+			app.Logger.Errorw("Auction not found or not active", "auctionId", auctionId, "error", err)
+			http.Error(w, "Auction not found or not active", http.StatusBadRequest)
+			return
+		}
+		
 
+		hub = app.HubManager.GetOrCreateHub(
+			auctionId,
+			auctionData.Increment,
+			auctionData.Title,
+			auctionData.Description,
+			int(auctionData.StartingPrice),
+			auctionData.StartTime,
+			auctionData.EndTime,
+			time.Duration(auctionData.EndTime.Sub(auctionData.StartTime).Hours())*time.Hour,
+			app.Service.AuctionService.(*auction.AuctionHTTP),
+		)
+
+		go func() {
+			time.Sleep(time.Until(auctionData.EndTime))
+			app.HubManager.HandleAuctionEnd(auctionId)
+		}()
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		app.Logger.Errorw("WebSocket upgrade failed", "error", err)
 		return
 	}
 
-	client := &auction.Client{
+	client := &auction_ws.Client{
 		ID:   senderId,
 		Hub:  hub,
 		Conn: conn,
@@ -403,18 +422,18 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	auction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
+	createdAuction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
 
 	if err != nil {
 		log.Printf("Failed to persist auction: %v", err)
 		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("AUCTION FROM HANDLER:", auction)
-	fmt.Println("++Auction ID:++", auction.AuctionID)
+	fmt.Println("AUCTION FROM HANDLER:", createdAuction)
+	fmt.Println("++Auction ID:++", createdAuction.AuctionID)
 
 	hub := app.HubManager.CreateHub(
-		auction.AuctionID,
+		createdAuction.AuctionID,
 		req.Title,
 		req.Description,
 		req.StartingPrice,
@@ -422,21 +441,22 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		req.StartDateTime,
 		req.EndDateTime,
 		time.Duration(req.Duration)*time.Hour,
+		app.Service.AuctionService.(*auction.AuctionHTTP),
 	)
 	if hub == nil {
 		http.Error(w, "Failed to create auction hub", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("AUCTION FROM HANDLER:", auction)
+	log.Println("AUCTION FROM HANDLER:", createdAuction)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":   true,
-		"auctionId": auction.AuctionID,
+		"auctionId": createdAuction.AuctionID,
 		"message":   "Auction created and published to WS successfully",
-		"data":      auction,
+		"data":      createdAuction,
 	})
 }
 

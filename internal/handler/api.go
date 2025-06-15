@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service"
-	"github.com/LikhithMar14/BidZy/internal/service/auction"
+	"github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
@@ -15,19 +15,19 @@ import (
 
 type Service struct {
 	AuthService *service.AuthService
-
+	AuctionService *service.AuctionService
 }
 
 type Application struct {
 	Config *Config
 	Logger *zap.SugaredLogger
 	Version string
-	HubManager *auction.HubManager
+	HubManager *auction_ws.HubManager
 	Rdb *redis.Client
 	Service *service.Service
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction.HubManager, rdb *redis.Client,store *store.Store, googleOauthClient *oauth2.Config) *Application {
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client,store *store.Store, googleOauthClient *oauth2.Config) *Application {
 
 	service := service.NewService(store, cfg.JwtSecret, googleOauthClient)
 	return &Application{

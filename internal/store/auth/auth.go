@@ -79,3 +79,30 @@ func (s *authStore) GetUserByEmailAndUserName(ctx context.Context, email, userNa
 
 	return &user, nil
 }
+
+func (s *authStore) GetUserByID(ctx context.Context, id string) (*types.User, error) {
+	query := `SELECT id, user_name, email,created_at, updated_at 
+	          FROM users 
+	          WHERE id = $1;`
+
+	var user types.User
+
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.Email,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Println("User not found")
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/migrations"
 	"github.com/LikhithMar14/BidZy/internal/scheduler"
 	auction_ws "github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
+	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	db "github.com/LikhithMar14/BidZy/internal/store/database"
 	"github.com/joho/godotenv"
@@ -24,6 +25,10 @@ func main() {
 	err := godotenv.Load()
 	if err != nil {
 		logger.Fatalw("failed to load environment variables", "error", err)
+	}
+	smtpCfg, err := mail.Load()
+	if err != nil {
+		logger.Fatalw("failed to load smtp config", "error", err)
 	}
 
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
@@ -56,7 +61,11 @@ func main() {
 		logger.Fatalw("failed to migrate database", "error", err)
 	}
 
-	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction)
+	// Initialize mail service with all required repositories
+	mailer := mail.NewMailService(smtpCfg, store.Auction, store.Auth, store.Bid)
+
+	// Initialize and start the auction scheduler
+	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction, mailer)
 	auctionScheduler.Start()
 
 	logger.Infow("database connection pool established and migrated successfully",
@@ -66,7 +75,7 @@ func main() {
 		"maxLifetime", cfg.Db.MaxLifetime.String())
 
 	// Create the application and get the server
-	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient)
+	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient, smtpCfg)
 	mux := app.Routes()
 
 	if err := app.Server(mux); err != nil {

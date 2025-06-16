@@ -21,6 +21,7 @@ type Store struct {
 type AuthRepository interface {
 	CreateUser(ctx context.Context, user *types.CreateUserRequest, hashedPassword string) (*types.User, error)
 	GetUserByEmailAndUserName(ctx context.Context, email, userName string) (*types.User, error)
+	GetUserByID(ctx context.Context, id string) (*types.User, error)
 }
 
 type CategoryRepository interface {
@@ -37,6 +38,7 @@ type AuctionRepository interface {
 	AddCategoryToAuction(ctx context.Context, auctionID, categoryID string) error
 	RemoveCategoryFromAuction(ctx context.Context, auctionID, categoryID string) error
 	RemoveAllCategoriesFromAuction(ctx context.Context, auctionID string) error
+	GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error)
 }
 
 type BidRepositotry interface {

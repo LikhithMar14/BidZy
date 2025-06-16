@@ -6,6 +6,7 @@ import (
 
 	"github.com/LikhithMar14/BidZy/internal/service"
 	"github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
+	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
@@ -25,11 +26,12 @@ type Application struct {
 	HubManager *auction_ws.HubManager
 	Rdb        *redis.Client
 	Service    *service.Service
+	SMTPConfig *mail.SMTPConfig
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config) *Application {
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Application {
 
-	service := service.NewService(store, cfg.JwtSecret, googleOauthClient)
+	service := service.NewService(store, cfg.JwtSecret, googleOauthClient, smtpCfg)
 	return &Application{
 		Config:     cfg,
 		Logger:     logger,
@@ -37,6 +39,7 @@ func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubM
 		HubManager: hubManager,
 		Rdb:        rdb,
 		Service:    service,
+		SMTPConfig: smtpCfg,
 	}
 }
 

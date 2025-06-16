@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -17,6 +18,7 @@ type Config struct {
 	ApiUrl      string
 	FrontendUrl string
 	JwtSecret   string
+	SMTP        *mail.SMTPConfig
 }
 
 type DbConfig struct {
@@ -49,6 +51,11 @@ func Load() *Config {
 		port = "8080"
 	}
 
+	smtpPort, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
+	if err != nil {
+		panic("invalid SMTP_PORT: " + err.Error())
+	}
+
 	return &Config{
 		Addr: port,
 		Db: DbConfig{
@@ -61,6 +68,14 @@ func Load() *Config {
 		ApiUrl:      os.Getenv("API_URL"),
 		FrontendUrl: os.Getenv("FRONTEND_URL"),
 		JwtSecret:   os.Getenv("JWT_SECRET"),
+		SMTP:        &mail.SMTPConfig{
+			Host: os.Getenv("SMTP_HOST"),
+			Port: smtpPort,
+			User: os.Getenv("SMTP_USER"),
+			Pass: os.Getenv("SMTP_PASS"),
+			From: os.Getenv("SMTP_FROM"),
+			Secure: os.Getenv("SMTP_SECURE"),
+		},
 	}
 }
 

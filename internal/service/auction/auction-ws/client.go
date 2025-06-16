@@ -21,6 +21,7 @@ const (
 
 type Client struct {
 	ID   string
+	UserName string
 	Hub  *Hub
 	Conn *websocket.Conn
 	Send chan []byte
@@ -136,6 +137,7 @@ func (c *Client) handleBidMessage(msg *types.Message) {
 		bid := &Bid{
 			SenderID: msg.SenderID,
 			Price:    msg.BiddingPrice,
+			UserName: &c.UserName,
 		}
 
 		select {
@@ -154,7 +156,7 @@ func (c *Client) handleBidMessage(msg *types.Message) {
 }
 
 func (c *Client) handlePingMessage(msg *types.Message) {
-	pongMsg := types.NewPongMessage(msg.AuctionID)
+	pongMsg := types.NewPongMessage(msg.AuctionID, &c.UserName)
 	pongMsg.SenderID = c.ID
 
 	if data, err := json.Marshal(pongMsg); err == nil {
@@ -189,7 +191,7 @@ func (c *Client) sendAuctionData() {
 func (c *Client) sendCurrentBidAndCount() {
 
 	if c.Hub.HighestBid != nil {
-		bidUpdateMsg := types.NewBidUpdateMessage(c.Hub.AuctionID, c.Hub.HighestBid.SenderID, c.Hub.HighestBid.Price)
+		bidUpdateMsg := types.NewBidUpdateMessage(c.Hub.AuctionID, c.Hub.HighestBid.SenderID, c.Hub.HighestBid.Price, &c.UserName)
 		if data, err := json.Marshal(bidUpdateMsg); err == nil {
 			select {
 			case c.Send <- data:
@@ -248,7 +250,7 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) sendErrorMessage(content string) {
-	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, c.ID, content)
+	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, c.ID, content,&c.UserName)
 	errorMsg.SenderID = c.ID
 
 	data, err := json.Marshal(errorMsg)
@@ -266,10 +268,13 @@ func (c *Client) sendErrorMessage(content string) {
 
 func (c *Client) sendSuccessMessage(content string) {
 	fmt.Println("Sending success message to client", c)
-	successMsg := types.NewSuccessMessage(c.Hub.AuctionID, content)
+	successMsg := types.NewSuccessMessage(c.Hub.AuctionID, content, &c.UserName)
 	successMsg.SenderID = c.ID
+	successMsg.UserName = &c.UserName
+
 
 	data, err := json.Marshal(successMsg)
+	fmt.Println("Success message", successMsg)
 	if err != nil {
 		log.Printf("Failed to marshal success message for client %s: %v", c.ID, err)
 		return

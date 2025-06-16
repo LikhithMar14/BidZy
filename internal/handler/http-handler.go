@@ -230,7 +230,9 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
+	log.Println("👉 claims:", claims)
+	log.Println("👉 userID before calling CreateAuction:", req.UserID)
+	log.Println("👉 claims.UserID:", claims.UserID)
 	req.UserID = claims.UserID
 	log.Println("USER ID:", req.UserID)
 
@@ -243,7 +245,7 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	log.Println("👉 userID before calling CreateAuction:", req.UserID)
 	createdAuction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
 	if err != nil {
 		log.Printf("Failed to persist auction: %v", err)

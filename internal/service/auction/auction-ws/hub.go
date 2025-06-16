@@ -22,6 +22,7 @@ type Bid struct {
 	SenderID  string    `json:"senderId"`
 	Price     float64   `json:"price"`
 	Timestamp time.Time `json:"timestamp"`
+	UserName  *string   `json:"userName"`
 }
 
 type Hub struct {
@@ -117,7 +118,7 @@ func (h *Hub) handleClientRegistration(client *Client) {
 
 	// Send current bid if exists
 	if h.HighestBid != nil {
-		currentBidMsg := types.NewBidUpdateMessage(h.AuctionID, h.HighestBid.SenderID, h.HighestBid.Price)
+		currentBidMsg := types.NewBidUpdateMessage(h.AuctionID, h.HighestBid.SenderID, h.HighestBid.Price, &client.UserName)
 		if data, err := json.Marshal(currentBidMsg); err == nil {
 			h.sendToClientWithTimeout(client, data, RegistrationTimeout)
 		} else {
@@ -237,7 +238,7 @@ func (h *Hub) handleBid(bid *Bid) {
 		log.Printf("Bid: %+v", bid)
 		log.Printf("SenderID: %s", bid.SenderID)
 
-		h.sendBidRejection(bid.SenderID, validation.ErrorMessage)
+		h.sendBidRejection(bid.SenderID, validation.ErrorMessage,bid.UserName)
 		h.addBidToHistory(bid) // Always add to history for audit purposes
 		return
 	}
@@ -273,8 +274,8 @@ func (h *Hub) handleBid(bid *Bid) {
 
 // sendBidRejection sends rejection message to bidder
 // Returns: void (consistent messaging pattern)
-func (h *Hub) sendBidRejection(bidderID, message string) {
-	rejectionMsg := types.NewErrorMessage(h.AuctionID, bidderID, message)
+func (h *Hub) sendBidRejection(bidderID, message string,userName *string) {
+	rejectionMsg := types.NewErrorMessage(h.AuctionID, bidderID, message,userName)
 	if data, err := json.Marshal(rejectionMsg); err == nil {
 		h.sendToBidderUnsafe(data, bidderID)
 	} else {
@@ -285,7 +286,7 @@ func (h *Hub) sendBidRejection(bidderID, message string) {
 // broadcastBidUpdate broadcasts successful bid to all clients
 // Returns: error (consistent error handling pattern)
 func (h *Hub) broadcastBidUpdate(bid *Bid) error {
-	bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price)
+	bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price,bid.UserName)
 	data, err := json.Marshal(bidUpdateMsg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal bid update message: %w", err)

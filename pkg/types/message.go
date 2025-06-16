@@ -5,6 +5,16 @@ package types
 // 	"auctionId":"b6e8efe7-a1bc-4bed-b53a-c06428566b12",
 // 	"senderId":"edc4547c-a191-4b02-8f49-9dda4c8854b"
 //   }
+
+
+// {
+// 	"type": "bid",
+// 	"action": "place_bid",
+// 	"auctionId": "b6e8efe7-a1bc-4bed-b53a-c06428566b12",
+// 	"senderId": "0bbddc41-cd43-4660-9ceb-876b0e678769",
+// 	"biddingPrice": 350
+//   }
+  
   
 import (
 	"fmt"
@@ -54,6 +64,7 @@ type Message struct {
 	Count        int           `json:"count,omitempty"`
 	Success      bool          `json:"success,omitempty"`
 	Data         interface{}   `json:"data,omitempty"`
+	UserName     *string        `json:"userName,omitempty"`
 }
 
 type WebSocketMessage struct {
@@ -110,50 +121,55 @@ func (m *Message) IsValid() bool {
 	}
 }
 
-func NewAuctionMessage(action AuctionAction, auctionID, senderID string) *Message {
+func NewAuctionMessage(action AuctionAction, auctionID, senderID string, userName *string) *Message {
 	return &Message{
 		Type:      TypeAuction,
 		Action:    action,
 		AuctionID: auctionID,
 		SenderID:  senderID,
+		UserName:  userName,
 		Timestamp: time.Now(),
 	}
 }
 
-func NewBidMessage(auctionID, senderID string, price float64) *Message {
+func NewBidMessage(auctionID, senderID string, price float64, userName *string) *Message {
 	return &Message{
 		Type:         TypeBid,
 		Action:       ActionPlaceBid,
 		AuctionID:    auctionID,
 		SenderID:     senderID,
+		UserName:     userName,
 		BiddingPrice: price,
 		Timestamp:    time.Now(),
 	}
 }
 
-func NewErrorMessage(auctionID, senderID, content string) *Message {
+func NewErrorMessage(auctionID, senderID, content string,userName *string) *Message {
 	return &Message{
 		Type:      TypeError,
 		AuctionID: auctionID,
 		SenderID:  senderID,
 		Content:   content,
+		UserName:  userName,
 		Timestamp: time.Now(),
 	}
 }
 
-func NewPingMessage(auctionID string) *Message {
+func NewPingMessage(auctionID string, userName *string) *Message {
 	return &Message{
 		Type:      TypePing,
 		AuctionID: auctionID,
-		Timestamp: time.Now(),
+		UserName:  userName,
+			Timestamp: time.Now(),
 	}
 }
 
-func NewPongMessage(auctionID string) *Message {
+func NewPongMessage(auctionID string, userName *string) *Message {
 	return &Message{
 		Type:      TypePong,
 		AuctionID: auctionID,
 		Timestamp: time.Now(),
+		UserName:  userName,
 	}
 }
 
@@ -166,11 +182,12 @@ func NewCountMessage(auctionID string, count int) *Message {
 	}
 }
 
-func NewSuccessMessage(auctionID, content string) *Message {
+func NewSuccessMessage(auctionID, content string, userName *string) *Message {
 	return &Message{
 		Type:      TypeSuccess,
 		AuctionID: auctionID,
 		Content:   content,
+		UserName:  userName,
 		Success:   true,
 		Timestamp: time.Now(),
 	}
@@ -197,7 +214,8 @@ func NewUserLeftMessage(auctionID, userID string) *Message {
 	}
 }
 
-func NewBidUpdateMessage(auctionID, bidderID string, price float64) *Message {
+func NewBidUpdateMessage(auctionID, bidderID string, price float64, userName *string) *Message {
+	fmt.Println("NewBidUpdateMessage", auctionID, bidderID, price, *userName)
 	return &Message{
 		Type:         TypeBidUpdate,
 		Action:       ActionBidAccepted,
@@ -205,6 +223,7 @@ func NewBidUpdateMessage(auctionID, bidderID string, price float64) *Message {
 		SenderID:     bidderID,
 		BiddingPrice: price,
 		Timestamp:    time.Now(),
+		UserName:     userName,
 	}
 }
 

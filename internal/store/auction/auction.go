@@ -18,6 +18,8 @@ func NewAuctionRepository(db *sql.DB) *auctionStore {
 }
 
 func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int, userID string) (*types.AuctionData, error) {
+	log.Println("👉 userID before calling CreateAuction:", userID)
+
 	log.Println("AUCTION FROM STORAGE LAYER:", auction)
 	log.Println("USER ID in CreateAuction:", userID)
 
@@ -25,10 +27,9 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Status received in handler/service:", auction.Status)
-
 	defer tx.Rollback()
 
+	// Step 1: Insert auction
 	insertAuctionQuery := `
 		INSERT INTO auctions (
 			title, description, starting_price, current_price,
@@ -68,11 +69,7 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 		return nil, fmt.Errorf("failed to insert auction: %w", err)
 	}
 
-	newAuction.IsActive = newAuction.Status == "ACTIVE"
-	newAuction.ClientCount = 0
-	newAuction.HighestBidder = ""
-
-	// Insert into junction table
+	// Step 2: Insert auction categories (junction table)
 	if len(categoryIDs) > 0 {
 		insertCategoryQuery := `
 			INSERT INTO auction_categories (auction_id, category_id)
@@ -84,19 +81,13 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 			}
 		}
 	}
-	log.Println("AUCTION FROM STORAGE LAYER:", newAuction)
 
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	// ✅ Corrected user fetch query
+	// Step 3: Fetch user details inside transaction
 	userQuery := `
 		SELECT id, user_name, email, created_at, updated_at 
 		FROM users WHERE id = $1
 	`
-	err = s.db.QueryRowContext(ctx, userQuery, userID).Scan(
+	err = tx.QueryRowContext(ctx, userQuery, userID).Scan(
 		&newAuction.User.ID,
 		&newAuction.User.UserName,
 		&newAuction.User.Email,
@@ -108,13 +99,20 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
 
-	// Fetch category IDs
+	// Step 4: Commit transaction
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	log.Println("++++TRANSACTION COMMITTED++++")
+
+	// Step 5: Fetch category IDs for response (optional)
 	catQuery := `SELECT category_id FROM auction_categories WHERE auction_id = $1`
 	rows, err := s.db.QueryContext(ctx, catQuery, newAuction.AuctionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch categories: %w", err)
 	}
 	defer rows.Close()
+	fmt.Println("++++ROWS++++", rows)
 
 	newAuction.CategoryIDs = []int{}
 	for rows.Next() {
@@ -128,9 +126,14 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 		return nil, fmt.Errorf("error iterating categories: %w", err)
 	}
 
-	fmt.Println("++++NEW AUCTION++++", newAuction)
+	newAuction.IsActive = newAuction.Status == "ACTIVE"
+	newAuction.ClientCount = 0
+	newAuction.HighestBidder = ""
+
+	log.Println("FINAL AUCTION OBJECT RETURNED:", newAuction)
 	return &newAuction, nil
 }
+
 
 func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
 	query := `
@@ -595,4 +598,38 @@ func (s *auctionStore) RemoveAllCategoriesFromAuction(ctx context.Context, aucti
 		return fmt.Errorf("failed to remove all categories from auction: %w", err)
 	}
 	return nil
+}
+
+// GetRecentlyEndedAuctionIDs returns IDs of auctions that have just ended
+// This is used by the scheduler to send notification emails
+func (s *auctionStore) GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error) {
+	// Find auctions that have ended in the last minute
+	// This ensures we only process newly ended auctions
+	query := `
+		SELECT id 
+		FROM auctions 
+		WHERE status = 'ENDED' 
+		AND updated_at >= NOW() - INTERVAL '1 minute'
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query recently ended auctions: %w", err)
+	}
+	defer rows.Close()
+
+	var auctionIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan auction ID: %w", err)
+		}
+		auctionIDs = append(auctionIDs, id)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating auction IDs: %w", err)
+	}
+
+	return auctionIDs, nil
 }

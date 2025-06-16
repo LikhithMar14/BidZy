@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/LikhithMar14/BidZy/pkg/types"
+	"fmt"
+
+		"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
 type bidStore struct {
@@ -31,6 +33,7 @@ func (s *bidStore) PlaceBid(ctx context.Context, bid *types.NewBidRequest) (*typ
 		}
 		return nil, err
 	}
+
 
 	return &newBid, nil
 }
@@ -64,8 +67,10 @@ func (s *bidStore) GetBidByID(ctx context.Context, id string) (*types.Bid, error
 }
 
 func (s *bidStore) GetBidsByAuctionID(ctx context.Context, auctionID string) ([]*types.Bid, error) {
+	fmt.Println("==== GETTING BIDS BY AUCTION ID ====")
+	fmt.Println("auctionID", auctionID)
 	query := `
-		SELECT b.id, b.amount, b.created_at, u.user_name as bidder_name
+		SELECT b.id, b.amount, b.created_at, u.user_name as bidder_name, b.user_id
 		FROM bids b
 		JOIN users u ON b.user_id = u.id
 		WHERE b.auction_id = $1
@@ -85,6 +90,7 @@ func (s *bidStore) GetBidsByAuctionID(ctx context.Context, auctionID string) ([]
 			&bid.Amount,
 			&bid.CreatedAt,
 			&bid.BidderName,
+			&bid.SenderID,
 		)
 		if err != nil {
 			return nil, err
@@ -96,6 +102,8 @@ func (s *bidStore) GetBidsByAuctionID(ctx context.Context, auctionID string) ([]
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	fmt.Println("==== BIDS ====")
+	fmt.Println("bids", bids)
 
 	return bids, nil
 }

@@ -110,6 +110,7 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 		Conn: conn,
 		Send: make(chan []byte, 256),
 		Rdb:  app.Rdb,
+		UserName: claims.UserName,
 	}
 
 	app.Logger.Infow("New WebSocket connection", "auctionId", auctionId, "senderId", senderId)

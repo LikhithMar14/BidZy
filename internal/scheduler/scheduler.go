@@ -12,6 +12,8 @@ type AuctionStore interface {
 	MarkAuctionsActive(ctx context.Context) error
 	MarkAuctionsEnded(ctx context.Context) error
 	GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error)
+	HasAuctionEmailBeenSent(ctx context.Context, auctionID string) (bool, error)
+	LogAuctionEmailSent(ctx context.Context, auctionID string) error
 }
 
 type MailService interface {
@@ -50,7 +52,7 @@ func (a *AuctionScheduler) Start() {
 
 		// 3. Send emails to winners of just-ended auctions
 		auctionIDs, err := a.store.GetRecentlyEndedAuctionIDs(ctx)
-		fmt.Println("==== CHEKCING EMAILS TO SEND ====")
+		fmt.Println("==== CHECKING EMAILS TO SEND ====")
 		fmt.Println("auctionIDs", auctionIDs)
 		if err != nil {
 			log.Println("[Scheduler] Failed to fetch recently ended auctions:", err)
@@ -58,14 +60,32 @@ func (a *AuctionScheduler) Start() {
 		}
 
 		for _, auctionID := range auctionIDs {
-			fmt.Println("auctionID", auctionID)
+			// 🔒 Check if email already sent
+			sent, err := a.store.HasAuctionEmailBeenSent(ctx, auctionID)
+			if err != nil {
+				log.Printf("[Scheduler] Failed to check email log for auction %s: %v", auctionID, err)
+				continue
+			}
+			if sent {
+				log.Printf("[Scheduler] Email already sent for auction %s. Skipping.\n", auctionID)
+				continue
+			}
+
+			// ✅ Send email
 			if err := a.mailService.SendAuctionEndedEmail(ctx, auctionID); err != nil {
 				log.Printf("[Scheduler] Failed to send winner email for auction %s: %v", auctionID, err)
+				continue
+			}
+
+			// ✏️ Log that email has been sent
+			if err := a.store.LogAuctionEmailSent(ctx, auctionID); err != nil {
+				log.Printf("[Scheduler] Email sent but failed to log for auction %s: %v", auctionID, err)
 			} else {
-				log.Printf("[Scheduler] Winner email sent for auction %s ✅", auctionID)
+				log.Printf("[Scheduler] Winner email sent and logged for auction %s ✅", auctionID)
 			}
 		}
 	})
 
 	c.Start()
 }
+

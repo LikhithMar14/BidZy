@@ -39,6 +39,8 @@ type AuctionRepository interface {
 	RemoveCategoryFromAuction(ctx context.Context, auctionID, categoryID string) error
 	RemoveAllCategoriesFromAuction(ctx context.Context, auctionID string) error
 	GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error)
+	HasAuctionEmailBeenSent(ctx context.Context, auctionID string) (bool, error)
+	LogAuctionEmailSent(ctx context.Context, auctionID string) error
 }
 
 type BidRepositotry interface {

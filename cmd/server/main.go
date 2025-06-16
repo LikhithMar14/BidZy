@@ -65,7 +65,7 @@ func main() {
 	mailer := mail.NewMailService(smtpCfg, store.Auction, store.Auth, store.Bid)
 
 	// Initialize and start the auction scheduler
-	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction, mailer)
+	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction, mailer,)
 	auctionScheduler.Start()
 
 	logger.Infow("database connection pool established and migrated successfully",

@@ -633,3 +633,15 @@ func (s *auctionStore) GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string
 
 	return auctionIDs, nil
 }
+func (a *auctionStore) HasAuctionEmailBeenSent(ctx context.Context, auctionID string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS (SELECT 1 FROM auction_email_logs WHERE auction_id = $1)`
+	err := a.db.QueryRowContext(ctx, query, auctionID).Scan(&exists)
+	return exists, err
+}
+
+func (a *auctionStore) LogAuctionEmailSent(ctx context.Context, auctionID string) error {
+	query := `INSERT INTO auction_email_logs (auction_id) VALUES ($1)`
+	_, err := a.db.ExecContext(ctx, query, auctionID)
+	return err
+}

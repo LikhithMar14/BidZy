@@ -45,11 +45,11 @@ func (s *bidStore) GetBidByID(ctx context.Context, id string) (*types.Bid, error
 
 	var bid types.Bid
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
-		&bid.ID, 
-		&bid.Amount, 
-		&bid.CreatedAt, 
-		&bid.SenderID, 
-		&bid.AuctionID, 
+		&bid.ID,
+		&bid.Amount,
+		&bid.CreatedAt,
+		&bid.SenderID,
+		&bid.AuctionID,
 		&bid.BidderName,
 	)
 
@@ -152,7 +152,6 @@ func (s *bidStore) GetUserBids(ctx context.Context, userID string) ([]*types.Bid
 			&userBid.Amount,
 			&userBid.CreatedAt,
 			&userBid.AuctionID,
-			
 		)
 		if err != nil {
 			return nil, err

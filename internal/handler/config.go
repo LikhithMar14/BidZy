@@ -8,8 +8,6 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-
-
 )
 
 type Config struct {
@@ -28,11 +26,8 @@ type DbConfig struct {
 	MaxLifetime  time.Duration
 }
 
-
-
 func Load() *Config {
 
-	
 	maxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
 	if err != nil {
 		fmt.Println("DB_MAX_OPEN_CONNS is not set")
@@ -68,6 +63,7 @@ func Load() *Config {
 		JwtSecret:   os.Getenv("JWT_SECRET"),
 	}
 }
+
 var GoogleOauthConfig *oauth2.Config
 
 func InitGoogleOauthConfig(googleClientID, googleClientSecret, googleRedirectURL string) *oauth2.Config {
@@ -82,6 +78,5 @@ func InitGoogleOauthConfig(googleClientID, googleClientSecret, googleRedirectURL
 		Endpoint: google.Endpoint,
 	}
 	return GoogleOauthConfig
-
 
 }

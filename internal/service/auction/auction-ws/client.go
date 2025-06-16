@@ -199,7 +199,6 @@ func (c *Client) sendCurrentBidAndCount() {
 		}
 	}
 
-	
 	countMsg := types.NewCountMessage(c.Hub.AuctionID, c.Hub.GetClientCount())
 	if data, err := json.Marshal(countMsg); err == nil {
 		select {
@@ -249,7 +248,7 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) sendErrorMessage(content string) {
-	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, content)
+	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, c.ID, content)
 	errorMsg.SenderID = c.ID
 
 	data, err := json.Marshal(errorMsg)

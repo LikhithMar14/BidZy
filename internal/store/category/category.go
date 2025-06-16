@@ -8,18 +8,13 @@ import (
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
-
 type categoryStore struct {
-	db *sql.DB	
+	db *sql.DB
 }
 
 func NewCategoryRepository(db *sql.DB) *categoryStore {
-	return &categoryStore{db : db}
+	return &categoryStore{db: db}
 }
-
-
-
-
 
 func (s *categoryStore) GetAllCategories(ctx context.Context) ([]*types.Category, error) {
 	fmt.Println("I AM HERE 1")
@@ -37,7 +32,7 @@ func (s *categoryStore) GetAllCategories(ctx context.Context) ([]*types.Category
 	fmt.Println("I AM HERE 2")
 	for rows.Next() {
 		c := &types.Category{}
-			if err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning category: %w", err)
 		}
 		categories = append(categories, c)

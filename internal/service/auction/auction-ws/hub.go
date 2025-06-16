@@ -197,9 +197,12 @@ func (h *Hub) validateBid(bid *Bid) BidValidationResult {
 
 	var minRequired float64
 	if h.HighestBid != nil {
+		fmt.Println("Highest Bid:", h.HighestBid.Price)
+		fmt.Println("Increment:", h.Increment)
 		minRequired = h.HighestBid.Price + h.Increment
 	} else {
-		minRequired = h.StartingPrice
+		fmt.Println("Starting Price:", h.StartingPrice)
+		minRequired = h.StartingPrice+h.Increment
 	}
 
 	if bid.Price < minRequired {
@@ -230,10 +233,15 @@ func (h *Hub) handleBid(bid *Bid) {
 	// Validate the bid
 	validation := h.validateBid(bid)
 	if !validation.IsValid {
+		log.Printf("Bid validation failed: %v", validation)
+		log.Printf("Bid: %+v", bid)
+		log.Printf("SenderID: %s", bid.SenderID)
+
 		h.sendBidRejection(bid.SenderID, validation.ErrorMessage)
 		h.addBidToHistory(bid) // Always add to history for audit purposes
 		return
 	}
+
 
 	// Process valid bid
 	h.lastActive = time.Now()
@@ -243,8 +251,8 @@ func (h *Hub) handleBid(bid *Bid) {
 
 	go func() {
 		_, err := h.auctionHTTP.AddBid(h.Ctx, &types.NewBidRequest{
-			Amount: bid.Price,
-			SenderID: bid.SenderID,
+			Amount:    bid.Price,
+			SenderID:  bid.SenderID,
 			AuctionID: h.AuctionID,
 		})
 		if err != nil {
@@ -266,7 +274,7 @@ func (h *Hub) handleBid(bid *Bid) {
 // sendBidRejection sends rejection message to bidder
 // Returns: void (consistent messaging pattern)
 func (h *Hub) sendBidRejection(bidderID, message string) {
-	rejectionMsg := types.NewErrorMessage(h.AuctionID, message)
+	rejectionMsg := types.NewErrorMessage(h.AuctionID, bidderID, message)
 	if data, err := json.Marshal(rejectionMsg); err == nil {
 		h.sendToBidderUnsafe(data, bidderID)
 	} else {

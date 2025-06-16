@@ -21,9 +21,9 @@ func (app *Application) AuthMiddleware(next http.Handler) http.Handler {
 		if authHeader == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":false,
-				"message":"Unauthorized",
-				"data":nil,
+				"success": false,
+				"message": "Unauthorized",
+				"data":    nil,
 			})
 			return
 		}
@@ -32,9 +32,9 @@ func (app *Application) AuthMiddleware(next http.Handler) http.Handler {
 		if tokenString == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":false,
-				"message":"Unauthorized",
-				"data":nil,
+				"success": false,
+				"message": "Unauthorized",
+				"data":    nil,
 			})
 			return
 		}
@@ -46,9 +46,9 @@ func (app *Application) AuthMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":false,
-				"message":"Unauthorized",
-				"data":nil,
+				"success": false,
+				"message": "Unauthorized",
+				"data":    nil,
 			})
 			return
 		}
@@ -56,9 +56,9 @@ func (app *Application) AuthMiddleware(next http.Handler) http.Handler {
 		if !token.Valid {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":false,
-				"message":"Unauthorized",
-				"data":nil,
+				"success": false,
+				"message": "Unauthorized",
+				"data":    nil,
 			})
 			return
 		}
@@ -67,9 +67,9 @@ func (app *Application) AuthMiddleware(next http.Handler) http.Handler {
 		if !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":false,
-				"message":"Unauthorized",
-				"data":nil,
+				"success": false,
+				"message": "Unauthorized",
+				"data":    nil,
 			})
 			return
 		}

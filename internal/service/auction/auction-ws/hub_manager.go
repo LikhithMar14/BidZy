@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	auction"github.com/LikhithMar14/BidZy/internal/service/auction"
+	auction "github.com/LikhithMar14/BidZy/internal/service/auction"
 	types "github.com/LikhithMar14/BidZy/pkg/types"
 )
 
@@ -73,16 +73,31 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 		return hub
 	}
 
+	fmt.Println("==== Recovering from Server Crash in GetOrCreateHub ====")
+
+	fmt.Println("Starting Price:", startingPrice)
+	fmt.Println("Increment:", increment)
+	fmt.Println("Title:", title)
+	fmt.Println("Description:", description)
+	fmt.Println("Start DateTime:", startDateTime)
+	fmt.Println("End DateTime:", endDateTime)
+	fmt.Println("Duration:", duration)
+	fmt.Println("Auction Service:", auctionService)
+
 	log.Printf("Creating new hub for auction %s", auctionId)
+	var RecoveredBid *Bid
+	if startingPrice > 0 {
+		RecoveredBid = &Bid{
+			Price: float64(startingPrice),
+			SenderID: "Recovered",
+		}
+	}
+
 	hub := NewHub(auctionId, increment, title, description, startingPrice, startDateTime, endDateTime, duration, auctionService)
+	hub.HighestBid = RecoveredBid
 	m.hubs[auctionId] = hub
 	go hub.Run()
 
-	go func() {
-		log.Printf("Creating auction %s in database...", auctionId)
-		time.Sleep(time.Second * 3)
-		log.Printf("Auction %s created in database", auctionId)
-	}()
 
 	return hub
 }

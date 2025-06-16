@@ -1,5 +1,11 @@
 package types
-
+// {
+// 	"type": "auction",
+// 	"action": "leave",
+// 	"auctionId":"b6e8efe7-a1bc-4bed-b53a-c06428566b12",
+// 	"senderId":"edc4547c-a191-4b02-8f49-9dda4c8854b"
+//   }
+  
 import (
 	"fmt"
 	"slices"
@@ -49,6 +55,17 @@ type Message struct {
 	Success      bool          `json:"success,omitempty"`
 	Data         interface{}   `json:"data,omitempty"`
 }
+
+type WebSocketMessage struct {
+	Type         MessageType   `json:"type"`
+	Action       AuctionAction `json:"action"`
+	AuctionID    *string        `json:"auctionId,omitempty"`
+	SenderID     *string        `json:"senderId,omitempty"`
+	BiddingPrice float64        `json:"biddingPrice,omitempty"`
+	Content      string         `json:"content,omitempty"`
+	Timestamp    time.Time      `json:"timestamp"`
+}
+
 type AuctionData struct {
 	AuctionID     string    `json:"auctionId"`
 	Title         string    `json:"title,omitempty"`
@@ -65,7 +82,7 @@ type AuctionData struct {
 	Image         string    `json:"image"`
 	User          User      `json:"user"`
 	CategoryIDs   []int     `json:"categoryIds"`
-	Participants  []User  `json:"participants"`
+	Participants  []User    `json:"participants"`
 }
 
 func (m *Message) IsValid() bool {
@@ -81,7 +98,7 @@ func (m *Message) IsValid() bool {
 		validActions := []AuctionAction{ActionJoin, ActionLeave, ActionCurrentBid, ActionBidRejected, ActionGetAuctionData, ActionAuctionStarted, ActionAuctionEnded}
 		return slices.Contains(validActions, m.Action)
 	case TypeBid:
-		return m.Action == ActionPlaceBid && m.BiddingPrice > 0 && m.SenderID != "" && m.AuctionID != "" 
+		return m.Action == ActionPlaceBid && m.BiddingPrice > 0 && m.SenderID != "" && m.AuctionID != ""
 	case TypePing, TypePong, TypeCount, TypeUserJoined, TypeUserLeft, TypeBidUpdate, TypeSuccess:
 		return true
 	case TypeError:
@@ -114,10 +131,11 @@ func NewBidMessage(auctionID, senderID string, price float64) *Message {
 	}
 }
 
-func NewErrorMessage(auctionID, content string) *Message {
+func NewErrorMessage(auctionID, senderID, content string) *Message {
 	return &Message{
 		Type:      TypeError,
 		AuctionID: auctionID,
+		SenderID:  senderID,
 		Content:   content,
 		Timestamp: time.Now(),
 	}
@@ -203,59 +221,55 @@ func NewAuctionDataMessage(auctionID string, data *AuctionData, senderID string)
 	}
 }
 
-
 type CreateAuctionRequest struct {
-	ID string `json:"id"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	StartingPrice float64 `json:"startingPrice"`
-	Increment     float64 `json:"increment"`
-	Duration      int     `json:"durationHours"` 
-	UserID        string  `json:"userId"`
-	Image         string  `json:"image"`
-	CategoryIDs    []int     `json:"categoryIds"`
+	ID            string    `json:"id"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	StartingPrice float64   `json:"startingPrice"`
+	Increment     float64   `json:"increment"`
+	Duration      int       `json:"durationHours"`
+	UserID        string    `json:"userId"`
+	Image         string    `json:"image"`
+	CategoryIDs   []int     `json:"categoryIds"`
 	StartDateTime time.Time `json:"startDateTime"`
 	EndDateTime   time.Time `json:"endDateTime"`
-	Status        string  `json:"status"`
-
-
+	Status        string    `json:"status"`
 }
 
 type NewBidRequest struct {
-	Amount float64 `json:"amount"`
-	SenderID string `json:"senderId"`
-	AuctionID string `json:"auctionId"`
+	Amount    float64 `json:"amount"`
+	SenderID  string  `json:"senderId"`
+	AuctionID string  `json:"auctionId"`
 }
 
 type NewBidResponse struct {
-	ID string `json:"id"`
-	Amount float64 `json:"amount"`
+	ID        string    `json:"id"`
+	Amount    float64   `json:"amount"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Bid struct {
-	ID string `json:"id"`
-	Amount float64 `json:"amount"`
-	CreatedAt time.Time `json:"createdAt"`
-	SenderID string `json:"senderId"`
-	AuctionID string `json:"auctionId"`
-	BidderName string `json:"bidderName"`
+	ID         string    `json:"id"`
+	Amount     float64   `json:"amount"`
+	CreatedAt  time.Time `json:"createdAt"`
+	SenderID   string    `json:"senderId"`
+	AuctionID  string    `json:"auctionId"`
+	BidderName string    `json:"bidderName"`
 }
 
 type CreateAuctionResponse struct {
-	ID string `json:"id"`
-	Title string `json:"title"`
-	Description string `json:"description"`
-	StartingPrice float64 `json:"startingPrice"`
-	CurrentPrice float64 `json:"currentPrice"`
+	ID            string    `json:"id"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	StartingPrice float64   `json:"startingPrice"`
+	CurrentPrice  float64   `json:"currentPrice"`
 	StartDateTime time.Time `json:"startDateTime"`
-	EndDateTime time.Time `json:"endDateTime"`
-	Status string `json:"status"`
-	Image string `json:"image"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	User User `json:"user"`
-	CategoryIDs []int `json:"categoryIds"`
-	Increment float64 `json:"increment"`
-	
+	EndDateTime   time.Time `json:"endDateTime"`
+	Status        string    `json:"status"`
+	Image         string    `json:"image"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	User          User      `json:"user"`
+	CategoryIDs   []int     `json:"categoryIds"`
+	Increment     float64   `json:"increment"`
 }

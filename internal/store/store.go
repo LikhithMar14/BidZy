@@ -11,18 +11,16 @@ import (
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
-
 type Store struct {
-	Auth AuthRepository
-	Bid BidRepositotry
+	Auth     AuthRepository
+	Bid      BidRepositotry
 	Category CategoryRepository
-	Auction AuctionRepository
+	Auction  AuctionRepository
 }
-
 
 type AuthRepository interface {
 	CreateUser(ctx context.Context, user *types.CreateUserRequest, hashedPassword string) (*types.User, error)
-	GetUserByEmailAndUserName(ctx context.Context, email , userName string) (*types.User, error)
+	GetUserByEmailAndUserName(ctx context.Context, email, userName string) (*types.User, error)
 }
 
 type CategoryRepository interface {
@@ -30,10 +28,10 @@ type CategoryRepository interface {
 }
 
 type AuctionRepository interface {
-	CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int,userID string) (*types.AuctionData, error)
+	CreateAuction(ctx context.Context, auction *types.CreateAuctionRequest, categoryIDs []int, userID string) (*types.AuctionData, error)
 	MarkAuctionsActive(ctx context.Context) error
 	MarkAuctionsEnded(ctx context.Context) error
-	GetAllAuctions(ctx context.Context)([]*types.AuctionData,error)
+	GetAllAuctions(ctx context.Context) ([]*types.AuctionData, error)
 	GetAuctionByID(ctx context.Context, auctionID string) (*types.AuctionData, error)
 	GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error)
 	AddCategoryToAuction(ctx context.Context, auctionID, categoryID string) error
@@ -50,11 +48,12 @@ type BidRepositotry interface {
 	GetBidCount(ctx context.Context, auctionID string) (int, error)
 	GetBidHistoryWithPagination(ctx context.Context, auctionID string, limit, offset int) ([]*types.Bid, error)
 }
+
 func NewStorage(db *sql.DB) *Store {
 	return &Store{
-		Auth: auth.NewAuthRepository(db),
-		Bid: bid.NewBidRepository(db),
+		Auth:     auth.NewAuthRepository(db),
+		Bid:      bid.NewBidRepository(db),
 		Category: category.NewCategoryRepository(db),
-		Auction: auction.NewAuctionRepository(db),
+		Auction:  auction.NewAuctionRepository(db),
 	}
 }

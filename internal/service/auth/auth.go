@@ -53,7 +53,6 @@ func (s *AuthService) Register(ctx context.Context, req *types.CreateUserRequest
 	}, nil
 }
 
-
 func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error) {
 	user, err := s.store.GetUserByEmailAndUserName(ctx, req.Email, req.UserName)
 	log.Println("user", user)
@@ -67,7 +66,6 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 	token := s.generateToken(user.UserName, user.Email, "user", user.ID)
 	return &types.LoginResponse{Token: token}, nil
 }
-
 
 func (s *AuthService) generateToken(userName, email, role, userID string) string {
 	if role == "" {
@@ -97,11 +95,9 @@ func (s *AuthService) generateToken(userName, email, role, userID string) string
 	return tokenString
 }
 
-
 func (s *AuthService) GetGoogleLoginURL(state string) string {
 	return s.googleOauthClient.AuthCodeURL(state)
 }
-
 
 func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (map[string]interface{}, error) {
 	token, err := s.googleOauthClient.Exchange(ctx, code)
@@ -123,13 +119,13 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 
 	email, _ := userInfo["email"].(string)
 	username, _ := userInfo["name"].(string)
-	googleID, _ := userInfo["id"].(string) 
+	googleID, _ := userInfo["id"].(string)
 
 	if email == "" || username == "" || googleID == "" {
 		return nil, errors.New("invalid user info from Google")
 	}
 
-		// Check if user exists
+	// Check if user exists
 	existingUser, err := s.store.GetUserByEmailAndUserName(ctx, email, username)
 	if err != nil {
 		return nil, err
@@ -138,14 +134,14 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 	var user *types.User
 
 	if existingUser == nil {
-		hashedPassword, err := utils.HashPassword(googleID) 
+		hashedPassword, err := utils.HashPassword(googleID)
 		if err != nil {
 			return nil, err
 		}
 		user, err = s.store.CreateUser(ctx, &types.CreateUserRequest{
 			Email:    email,
 			UserName: username,
-			Password: googleID, 
+			Password: googleID,
 		}, hashedPassword)
 		if err != nil {
 			return nil, err
@@ -156,14 +152,14 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 
 	return map[string]interface{}{
 		"success": true,
-		"data": map[string]interface{}{	
+		"data": map[string]interface{}{
 			"user": map[string]interface{}{
-				"id": user.ID,
-				"email": user.Email,
+				"id":       user.ID,
+				"email":    user.Email,
 				"username": user.UserName,
-				"role": "user",
+				"role":     "user",
 			},
-			"token": s.generateToken(user.UserName, user.Email, "user", user.ID),
+			"token":   s.generateToken(user.UserName, user.Email, "user", user.ID),
 			"message": "User logged in successfully",
 		},
 	}, nil

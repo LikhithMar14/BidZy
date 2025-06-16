@@ -14,41 +14,40 @@ import (
 )
 
 type Service struct {
-	AuthService *service.AuthService
+	AuthService    *service.AuthService
 	AuctionService *service.AuctionService
 }
 
 type Application struct {
-	Config *Config
-	Logger *zap.SugaredLogger
-	Version string
+	Config     *Config
+	Logger     *zap.SugaredLogger
+	Version    string
 	HubManager *auction_ws.HubManager
-	Rdb *redis.Client
-	Service *service.Service
+	Rdb        *redis.Client
+	Service    *service.Service
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client,store *store.Store, googleOauthClient *oauth2.Config) *Application {
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config) *Application {
 
 	service := service.NewService(store, cfg.JwtSecret, googleOauthClient)
 	return &Application{
-		Config: cfg,
-		Logger: logger,
-		Version: version,
+		Config:     cfg,
+		Logger:     logger,
+		Version:    version,
 		HubManager: hubManager,
-		Rdb: rdb,
-		Service: service,
+		Rdb:        rdb,
+		Service:    service,
 	}
 }
 
-
 func (app *Application) Server(mux *chi.Mux) error {
 	server := &http.Server{
-		Addr: app.Config.Addr,
-		Handler: mux,
-		ReadTimeout: 10 * time.Second,
+		Addr:         app.Config.Addr,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
-		IdleTimeout: 10 * time.Second,
-		ErrorLog: zap.NewStdLog(app.Logger.Desugar()),
+		IdleTimeout:  10 * time.Second,
+		ErrorLog:     zap.NewStdLog(app.Logger.Desugar()),
 	}
 
 	app.Logger.Infow("server started", "addr", app.Config.Addr)

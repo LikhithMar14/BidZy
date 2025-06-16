@@ -65,19 +65,24 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 	// Try to get hub, or lazily initialize if it doesn't exist
 	hub := app.HubManager.GetHub(auctionId)
 	if hub == nil {
+		fmt.Println("==== Auction not found ====")
+
+		fmt.Println("==== Recovering from Server Crash ====")
 		auctionData, err := app.Service.AuctionService.GetAuctionByID(r.Context(), auctionId)
 		if err != nil || auctionData.Status != "ACTIVE" || time.Now().After(auctionData.EndTime) {
 			app.Logger.Errorw("Auction not found or not active", "auctionId", auctionId, "error", err)
 			http.Error(w, "Auction not found or not active", http.StatusBadRequest)
 			return
 		}
+		fmt.Println("==== Auction data ====")
+		app.Logger.Infow("Auction found", "auctionId", auctionId, "auctionData", auctionData)
 
 		hub = app.HubManager.GetOrCreateHub(
 			auctionId,
 			auctionData.Increment,
 			auctionData.Title,
 			auctionData.Description,
-			int(auctionData.StartingPrice),
+			int(auctionData.CurrentPrice),
 			auctionData.StartTime,
 			auctionData.EndTime,
 			time.Duration(auctionData.EndTime.Sub(auctionData.StartTime).Hours())*time.Hour,

@@ -17,7 +17,6 @@ import (
 
 var oauthStateString, _ = utils.GenerateOAuthState(12)
 
-
 func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := types.CreateUserRequest{}
@@ -134,7 +133,7 @@ func (app *Application) AboutUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := ctx.Value(types.UserContextKey)
 	log.Println(user)
-	
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data":    user,
@@ -184,8 +183,8 @@ func (app *Application) GetAuctionByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true, 
-		"data":    auction, 
+		"success": true,
+		"data":    auction,
 		"message": "Auction fetched successfully",
 	})
 }
@@ -212,8 +211,8 @@ func (app *Application) GetAuctionByUserID(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true, 
-		"data":    auctions, 
+		"success": true,
+		"data":    auctions,
 		"message": "Auctions fetched successfully",
 	})
 }
@@ -369,12 +368,12 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get categories", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true, 
-		"data":    categories, 
+		"success": true,
+		"data":    categories,
 		"message": "Categories fetched successfully",
 	})
 }

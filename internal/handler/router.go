@@ -38,13 +38,13 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Route("/api/v1", func(r chi.Router) {
 		// Stats endpoint
 		r.Get("/stats", app.GetStats)
-		
+
 		// Authentication routes
 		r.Post("/register", app.RegisterUser)
 		r.Post("/login", app.LoginUser)
 		r.Get("/auth/google/login", app.GoogleLoginHandler)
 		r.Get("/auth/google/callback", app.GoogleCallbackHandler)
-		
+
 		// Protected routes
 		r.With(app.AuthMiddleware).Get("/about", app.AboutUser)
 		r.With(app.AuthMiddleware).Get("/categories", app.GetCategories)

@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/LikhithMar14/BidZy/pkg/types"
-
 )
 
 type auctionStore struct {
@@ -133,7 +132,6 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	return &newAuction, nil
 }
 
-
 func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
 	query := `
 		UPDATE auctions
@@ -258,12 +256,10 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		return auctions, nil
 	}
 
-
 	if err := s.populateAuctionCategories(ctx, auctions); err != nil {
 		return nil, fmt.Errorf("failed to populate categories: %w", err)
 	}
 
-	
 	participantQuery := `
 		SELECT DISTINCT b.auction_id, u.id, u.user_name, u.email, u.created_at, u.updated_at
 		FROM bids b
@@ -293,14 +289,12 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		}
 	}
 
-	
 	for _, auction := range auctions {
 		auction.ClientCount = len(auction.Participants)
 	}
 
 	return auctions, nil
 }
-
 
 // Helper function to populate categories for multiple auctions efficiently
 func (s *auctionStore) populateAuctionCategories(ctx context.Context, auctions []*types.AuctionData) error {
@@ -489,8 +483,6 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 
 	return &auction, nil
 }
-
-
 
 func (s *auctionStore) GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error) {
 	query := `

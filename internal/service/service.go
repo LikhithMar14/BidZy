@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/LikhithMar14/BidZy/internal/service/auth"
 	auction "github.com/LikhithMar14/BidZy/internal/service/auction"
+	"github.com/LikhithMar14/BidZy/internal/service/auth"
 	"github.com/LikhithMar14/BidZy/internal/service/category"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/LikhithMar14/BidZy/pkg/types"
@@ -27,7 +27,7 @@ type AuctionService interface {
 	GetAllAuctions(ctx context.Context) ([]*types.AuctionData, error)
 	GetAuctionByID(ctx context.Context, auctionID string) (*types.AuctionData, error)
 	GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.AuctionData, error)
-	AddBid(ctx context.Context, req *types.NewBidRequest) (*types.NewBidResponse, error)	
+	AddBid(ctx context.Context, req *types.NewBidRequest) (*types.NewBidResponse, error)
 }
 
 type Service struct {
@@ -41,6 +41,6 @@ func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.
 		AuthService: auth.NewAuthService(store.Auth, jwtSecret, googleOauthClient),
 
 		CategoryService: category.NewCategoryService(store.Category),
-		AuctionService:  auction.NewAuctionHTTP(store.Auction,store.Bid),
+		AuctionService:  auction.NewAuctionHTTP(store.Auction, store.Bid),
 	}
 }

@@ -7,9 +7,8 @@ import (
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
-
 type CategoryService struct {
-	store store.CategoryRepository	
+	store store.CategoryRepository
 }
 
 func NewCategoryService(store store.CategoryRepository) *CategoryService {

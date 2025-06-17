@@ -20,12 +20,12 @@ const (
 )
 
 type Client struct {
-	ID   string
+	ID       string
 	UserName string
-	Hub  *Hub
-	Conn *websocket.Conn
-	Send chan []byte
-	Rdb  *redis.Client
+	Hub      *Hub
+	Conn     *websocket.Conn
+	Send     chan []byte
+	Rdb      *redis.Client
 }
 
 func (c *Client) ReadPump() {
@@ -250,7 +250,7 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) sendErrorMessage(content string) {
-	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, c.ID, content,&c.UserName)
+	errorMsg := types.NewErrorMessage(c.Hub.AuctionID, c.ID, content, &c.UserName)
 	errorMsg.SenderID = c.ID
 
 	data, err := json.Marshal(errorMsg)
@@ -272,7 +272,6 @@ func (c *Client) sendSuccessMessage(content string) {
 	successMsg.SenderID = c.ID
 	successMsg.UserName = &c.UserName
 
-
 	data, err := json.Marshal(successMsg)
 	fmt.Println("Success message", successMsg)
 	if err != nil {
@@ -281,6 +280,7 @@ func (c *Client) sendSuccessMessage(content string) {
 	}
 
 	select {
+	//if it is in case of redis , then we publish the message to the redis channel
 	case c.Send <- data:
 	case <-time.After(sendTimeout):
 		log.Printf("Timeout sending success message to client %s", c.ID)

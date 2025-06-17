@@ -379,3 +379,103 @@ func (app *Application) GetCategories(w http.ResponseWriter, r *http.Request) {
 		"message": "Categories fetched successfully",
 	})
 }
+
+func (app *Application) GetUserByID(w http.ResponseWriter, r *http.Request) {
+	// user id will be fetched from the context
+
+	user, err := app.Service.UserService.GetUserByID(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    user,
+		"message": "User fetched successfully",
+	})
+}
+
+
+func (app *Application) GetAuctionsByUserID(w http.ResponseWriter, r *http.Request) {
+	auctions, err := app.Service.UserService.GetAuctionsByUserID(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    auctions,
+		"message": "Auctions fetched successfully",
+	})
+}
+
+func (app *Application)GetBidsByUserID(w http.ResponseWriter, r *http.Request) {
+	bids, err := app.Service.UserService.GetBidsByUserID(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get bids", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    bids,
+		"message": "Bids fetched successfully",
+	})
+}
+
+
+func (app *Application)GetOwnStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := app.Service.UserService.GetOwnStats(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    stats,
+		"message": "Stats fetched successfully",
+	})
+}
+
+func (app *Application)GetUserStatsByID(w http.ResponseWriter, r *http.Request) {
+	stats, err := app.Service.UserService.GetUserStatsByID(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    stats,
+		"message": "Stats fetched successfully",
+	})
+}
+
+func (app *Application)GetParticipatedAuctions(w http.ResponseWriter, r *http.Request) {
+	auctions, err := app.Service.UserService.GetParticipatedAuctions(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    auctions,
+		"message": "Participated auctions fetched successfully",
+	})
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/store/auth"
 	"github.com/LikhithMar14/BidZy/internal/store/bid"
 	"github.com/LikhithMar14/BidZy/internal/store/category"
+	"github.com/LikhithMar14/BidZy/internal/store/user"
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
@@ -16,6 +17,7 @@ type Store struct {
 	Bid      BidRepositotry
 	Category CategoryRepository
 	Auction  AuctionRepository
+	User     UserRepository
 }
 
 type AuthRepository interface {
@@ -53,11 +55,20 @@ type BidRepositotry interface {
 	GetBidHistoryWithPagination(ctx context.Context, auctionID string, limit, offset int) ([]*types.Bid, error)
 }
 
+type UserRepository interface {
+	GetUserByID(ctx context.Context, id string) (*types.User, error)
+	GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.Auction, error)
+	GetBidsByUserID(ctx context.Context, userID string) ([]*types.Bid, error)
+	GetUserStats(ctx context.Context, userID string) (*types.UserStats, error)
+	GetParticipatedAuctions(ctx context.Context, userID string) ([]*types.Auction, error)
+}
+
 func NewStorage(db *sql.DB) *Store {
 	return &Store{
 		Auth:     auth.NewAuthRepository(db),
 		Bid:      bid.NewBidRepository(db),
 		Category: category.NewCategoryRepository(db),
 		Auction:  auction.NewAuctionRepository(db),
+		User:     user.NewUserRepository(db),
 	}
 }

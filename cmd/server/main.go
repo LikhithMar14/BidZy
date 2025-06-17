@@ -1,8 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/handler"
 	"github.com/LikhithMar14/BidZy/internal/migrations"
@@ -26,6 +30,7 @@ func main() {
 	if err != nil {
 		logger.Fatalw("failed to load environment variables", "error", err)
 	}
+
 	smtpCfg, err := mail.Load()
 	if err != nil {
 		logger.Fatalw("failed to load smtp config", "error", err)
@@ -34,7 +39,6 @@ func main() {
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
-
 	googleOauthClient := handler.InitGoogleOauthConfig(googleClientID, googleClientSecret, googleRedirectURL)
 
 	cfg := handler.Load()
@@ -46,7 +50,6 @@ func main() {
 	})
 
 	hubManager := auction_ws.NewHubManager()
-	fmt.Println(cfg.Db.Addr)
 
 	database, err := db.Open(cfg.Db.Addr, cfg.Db.MaxOpenConns, cfg.Db.MaxIdleConns, cfg.Db.MaxLifetime.String())
 	if err != nil {
@@ -56,29 +59,48 @@ func main() {
 
 	store := store.NewStorage(database)
 
-	err = db.MigrateFS(database, migrations.FS, ".")
-	if err != nil {
+	if err := db.MigrateFS(database, migrations.FS, "."); err != nil {
 		logger.Fatalw("failed to migrate database", "error", err)
 	}
 
-	// Initialize mail service with all required repositories
 	mailer := mail.NewMailService(smtpCfg, store.Auction, store.Auth, store.Bid)
-
-	// Initialize and start the auction scheduler
 	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction, mailer)
 	auctionScheduler.Start()
 
-	logger.Infow("database connection pool established and migrated successfully",
-		"addr", cfg.Db.Addr,
-		"maxOpenConns", cfg.Db.MaxOpenConns,
-		"maxIdleConns", cfg.Db.MaxIdleConns,
-		"maxLifetime", cfg.Db.MaxLifetime.String())
-
-	// Create the application and get the server
 	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient, smtpCfg)
 	mux := app.Routes()
 
-	if err := app.Server(mux); err != nil {
-		logger.Errorw("server exited with error", "error", err)
+	srv := &http.Server{
+		Addr:    cfg.Addr,
+		Handler: mux,
 	}
+
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigint
+		logger.Infow("shutting down gracefully...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			logger.Errorw("server shutdown failed", "error", err)
+		}
+
+		auctionScheduler.Stop()
+		hubManager.Stop()
+
+		close(idleConnsClosed)
+	}()
+
+	logger.Infow("starting server", "addr", cfg.Addr)
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		logger.Fatalw("server error", "error", err)
+	}
+
+	<-idleConnsClosed
+	logger.Infow("server stopped")
 }

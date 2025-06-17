@@ -1,11 +1,11 @@
 package types
+
 // {
 // 	"type": "auction",
 // 	"action": "leave",
 // 	"auctionId":"b6e8efe7-a1bc-4bed-b53a-c06428566b12",
 // 	"senderId":"edc4547c-a191-4b02-8f49-9dda4c8854b"
 //   }
-
 
 // {
 // 	"type": "bid",
@@ -14,8 +14,7 @@ package types
 // 	"senderId": "0bbddc41-cd43-4660-9ceb-876b0e678769",
 // 	"biddingPrice": 350
 //   }
-  
-  
+
 import (
 	"fmt"
 	"slices"
@@ -64,17 +63,17 @@ type Message struct {
 	Count        int           `json:"count,omitempty"`
 	Success      bool          `json:"success,omitempty"`
 	Data         interface{}   `json:"data,omitempty"`
-	UserName     *string        `json:"userName,omitempty"`
+	UserName     *string       `json:"userName,omitempty"`
 }
 
 type WebSocketMessage struct {
 	Type         MessageType   `json:"type"`
 	Action       AuctionAction `json:"action"`
-	AuctionID    *string        `json:"auctionId,omitempty"`
-	SenderID     *string        `json:"senderId,omitempty"`
-	BiddingPrice float64        `json:"biddingPrice,omitempty"`
-	Content      string         `json:"content,omitempty"`
-	Timestamp    time.Time      `json:"timestamp"`
+	AuctionID    *string       `json:"auctionId,omitempty"`
+	SenderID     *string       `json:"senderId,omitempty"`
+	BiddingPrice float64       `json:"biddingPrice,omitempty"`
+	Content      string        `json:"content,omitempty"`
+	Timestamp    time.Time     `json:"timestamp"`
 }
 
 type AuctionData struct {
@@ -144,7 +143,7 @@ func NewBidMessage(auctionID, senderID string, price float64, userName *string) 
 	}
 }
 
-func NewErrorMessage(auctionID, senderID, content string,userName *string) *Message {
+func NewErrorMessage(auctionID, senderID, content string, userName *string) *Message {
 	return &Message{
 		Type:      TypeError,
 		AuctionID: auctionID,
@@ -160,7 +159,7 @@ func NewPingMessage(auctionID string, userName *string) *Message {
 		Type:      TypePing,
 		AuctionID: auctionID,
 		UserName:  userName,
-			Timestamp: time.Now(),
+		Timestamp: time.Now(),
 	}
 }
 
@@ -275,6 +274,22 @@ type Bid struct {
 	AuctionID  string    `json:"auctionId"`
 	BidderName string    `json:"bidderName"`
 }
+type Auction struct {
+	ID            string
+	Title         string
+	Description   string
+	StartingPrice float64
+	CurrentPrice  float64
+	Increment     float64
+	StartDate     time.Time
+	EndDate       time.Time
+	Status        string
+	Image         string
+	ClientCount   int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 
 type CreateAuctionResponse struct {
 	ID            string    `json:"id"`

@@ -94,8 +94,6 @@ func (h *Hub) Run() {
 	}
 }
 
-// handleClientRegistration processes new client registrations
-// Returns: void (consistent with other handlers)
 func (h *Hub) handleClientRegistration(client *Client) {
 	h.mu.Lock()
 	h.Clients[client] = true
@@ -127,8 +125,6 @@ func (h *Hub) handleClientRegistration(client *Client) {
 	}
 }
 
-// handleClientUnregistration processes client disconnections
-// Returns: void (consistent with other handlers)
 func (h *Hub) handleClientUnregistration(client *Client) {
 	h.mu.Lock()
 	_, existed := h.Clients[client]
@@ -150,15 +146,12 @@ func (h *Hub) handleClientUnregistration(client *Client) {
 	}
 }
 
-// BidValidationResult represents the result of bid validation
 type BidValidationResult struct {
 	IsValid      bool
 	ErrorMessage string
 	MinRequired  float64
 }
 
-// validateBid performs comprehensive bid validation
-// Returns: BidValidationResult (consistent validation result)
 func (h *Hub) validateBid(bid *Bid) BidValidationResult {
 	if bid == nil {
 		return BidValidationResult{
@@ -203,7 +196,7 @@ func (h *Hub) validateBid(bid *Bid) BidValidationResult {
 		minRequired = h.HighestBid.Price + h.Increment
 	} else {
 		fmt.Println("Starting Price:", h.StartingPrice)
-		minRequired = h.StartingPrice+h.Increment
+		minRequired = h.StartingPrice + h.Increment
 	}
 
 	if bid.Price < minRequired {
@@ -220,8 +213,6 @@ func (h *Hub) validateBid(bid *Bid) BidValidationResult {
 	}
 }
 
-// handleBid processes incoming bids with consistent error handling
-// Returns: void (consistent with other handlers)
 func (h *Hub) handleBid(bid *Bid) {
 	log.Printf("Received bid: %+v", bid)
 
@@ -238,11 +229,10 @@ func (h *Hub) handleBid(bid *Bid) {
 		log.Printf("Bid: %+v", bid)
 		log.Printf("SenderID: %s", bid.SenderID)
 
-		h.sendBidRejection(bid.SenderID, validation.ErrorMessage,bid.UserName)
+		h.sendBidRejection(bid.SenderID, validation.ErrorMessage, bid.UserName)
 		h.addBidToHistory(bid) // Always add to history for audit purposes
 		return
 	}
-
 
 	// Process valid bid
 	h.lastActive = time.Now()
@@ -272,10 +262,8 @@ func (h *Hub) handleBid(bid *Bid) {
 	log.Printf("New highest bid in auction %s: $%.2f by %s", h.AuctionID, bid.Price, bid.SenderID)
 }
 
-// sendBidRejection sends rejection message to bidder
-// Returns: void (consistent messaging pattern)
-func (h *Hub) sendBidRejection(bidderID, message string,userName *string) {
-	rejectionMsg := types.NewErrorMessage(h.AuctionID, bidderID, message,userName)
+func (h *Hub) sendBidRejection(bidderID, message string, userName *string) {
+	rejectionMsg := types.NewErrorMessage(h.AuctionID, bidderID, message, userName)
 	if data, err := json.Marshal(rejectionMsg); err == nil {
 		h.sendToBidderUnsafe(data, bidderID)
 	} else {
@@ -283,10 +271,8 @@ func (h *Hub) sendBidRejection(bidderID, message string,userName *string) {
 	}
 }
 
-// broadcastBidUpdate broadcasts successful bid to all clients
-// Returns: error (consistent error handling pattern)
 func (h *Hub) broadcastBidUpdate(bid *Bid) error {
-	bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price,bid.UserName)
+	bidUpdateMsg := types.NewBidUpdateMessage(h.AuctionID, bid.SenderID, bid.Price, bid.UserName)
 	data, err := json.Marshal(bidUpdateMsg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal bid update message: %w", err)
@@ -296,16 +282,12 @@ func (h *Hub) broadcastBidUpdate(bid *Bid) error {
 	return nil
 }
 
-// addBidToHistory adds bid to history (internal helper)
-// Returns: void (consistent internal helper pattern)
 func (h *Hub) addBidToHistory(bid *Bid) {
 	if bid != nil {
 		h.BidHistory = append(h.BidHistory, bid)
 	}
 }
 
-// broadcastUnsafe sends message to all connected clients
-// Returns: void (consistent broadcasting pattern)
 func (h *Hub) broadcastUnsafe(message []byte) {
 	log.Printf("Broadcasting message to clients: %s", string(message))
 	for client := range h.Clients {
@@ -318,8 +300,6 @@ func (h *Hub) broadcastUnsafe(message []byte) {
 	}
 }
 
-// broadcastToOthers sends message to all clients except the excluded one
-// Returns: void (consistent broadcasting pattern)
 func (h *Hub) broadcastToOthers(message []byte, excludeClientID string) {
 	h.mu.RLock()
 	clients := make([]*Client, 0, len(h.Clients))
@@ -340,8 +320,6 @@ func (h *Hub) broadcastToOthers(message []byte, excludeClientID string) {
 	}
 }
 
-// sendToBidderUnsafe sends message to specific bidder
-// Returns: void (consistent messaging pattern)
 func (h *Hub) sendToBidderUnsafe(message []byte, bidderID string) {
 	for client := range h.Clients {
 		if client.ID == bidderID {
@@ -356,8 +334,6 @@ func (h *Hub) sendToBidderUnsafe(message []byte, bidderID string) {
 	}
 }
 
-// sendToClientWithTimeout sends message to client with timeout
-// Returns: void (consistent messaging pattern)
 func (h *Hub) sendToClientWithTimeout(client *Client, message []byte, timeout time.Duration) {
 	select {
 	case client.Send <- message:
@@ -367,8 +343,6 @@ func (h *Hub) sendToClientWithTimeout(client *Client, message []byte, timeout ti
 	}
 }
 
-// sendAuctionDataToClient sends auction information to a specific client
-// Returns: void (consistent messaging pattern)
 func (h *Hub) sendAuctionDataToClient(client *Client) {
 	h.mu.RLock()
 	auctionData := &types.AuctionData{
@@ -398,16 +372,12 @@ func (h *Hub) sendAuctionDataToClient(client *Client) {
 	}
 }
 
-// removeClient safely removes a client (thread-safe version)
-// Returns: void (consistent client management pattern)
 func (h *Hub) removeClient(client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.removeClientUnsafe(client)
 }
 
-// removeClientUnsafe removes client without locking (internal helper)
-// Returns: void (consistent client management pattern)
 func (h *Hub) removeClientUnsafe(client *Client) {
 	if _, ok := h.Clients[client]; ok {
 		delete(h.Clients, client)
@@ -416,8 +386,6 @@ func (h *Hub) removeClientUnsafe(client *Client) {
 	}
 }
 
-// closeAllClients closes all client connections
-// Returns: void (consistent cleanup pattern)
 func (h *Hub) closeAllClients() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -431,24 +399,18 @@ func (h *Hub) closeAllClients() {
 	h.Clients = make(map[*Client]bool)
 }
 
-// GetClientCount returns the number of connected clients
-// Returns: int (consistent getter pattern)
 func (h *Hub) GetClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.Clients)
 }
 
-// GetLastActive returns the last activity timestamp
-// Returns: time.Time (consistent getter pattern)
 func (h *Hub) GetLastActive() time.Time {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.lastActive
 }
 
-// GetAuctionData returns current auction state
-// Returns: *types.AuctionData (consistent getter pattern)
 func (h *Hub) GetAuctionData() *types.AuctionData {
 	h.mu.RLock()
 	defer h.mu.Unlock()
@@ -476,8 +438,6 @@ func (h *Hub) GetAuctionData() *types.AuctionData {
 	}
 }
 
-// Cancel gracefully shuts down the hub
-// Returns: void (consistent control pattern)
 func (h *Hub) Cancel() {
 	log.Printf("Cancelling hub %s", h.AuctionID)
 	h.mu.Lock()
@@ -492,8 +452,6 @@ type ClientInfo struct {
 	IsActive bool      `json:"isActive"`
 }
 
-// GetClientInfo returns information about all connected clients
-// Returns: []ClientInfo (consistent getter pattern)
 func (h *Hub) GetClientInfo() []ClientInfo {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -509,8 +467,6 @@ func (h *Hub) GetClientInfo() []ClientInfo {
 	return clientList
 }
 
-// GetBidHistory returns a copy of the bid history
-// Returns: []*Bid (consistent getter pattern)
 func (h *Hub) GetBidHistory() []*Bid {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

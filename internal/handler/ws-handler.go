@@ -105,11 +105,11 @@ func (app *Application) JoinAuction(w http.ResponseWriter, r *http.Request) {
 
 	// Create WebSocket client
 	client := &auction_ws.Client{
-		ID:   senderId,
-		Hub:  hub,
-		Conn: conn,
-		Send: make(chan []byte, 256),
-		Rdb:  app.Rdb,
+		ID:       senderId,
+		Hub:      hub,
+		Conn:     conn,
+		Send:     make(chan []byte, 256),
+		Rdb:      app.Rdb,
 		UserName: claims.UserName,
 	}
 

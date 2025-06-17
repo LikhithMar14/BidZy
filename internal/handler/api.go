@@ -17,7 +17,7 @@ import (
 // type Service struct {
 // 	AuthService    *service.AuthService
 // 	AuctionService *service.AuctionService
-	
+
 // }
 
 type Application struct {

@@ -23,12 +23,14 @@ type MailService interface {
 type AuctionScheduler struct {
 	store       AuctionStore
 	mailService MailService
+	cron        *cron.Cron
 }
 
 func NewAuctionScheduler(store AuctionStore, mailService MailService) *AuctionScheduler {
 	return &AuctionScheduler{
 		store:       store,
 		mailService: mailService,
+		cron:        cron.New(cron.WithSeconds()),
 	}
 }
 
@@ -89,3 +91,6 @@ func (a *AuctionScheduler) Start() {
 	c.Start()
 }
 
+func (a *AuctionScheduler) Stop() {
+	a.cron.Stop()
+}

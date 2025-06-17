@@ -88,7 +88,7 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	var RecoveredBid *Bid
 	if startingPrice > 0 {
 		RecoveredBid = &Bid{
-			Price: float64(startingPrice),
+			Price:    float64(startingPrice),
 			SenderID: "Recovered",
 		}
 	}
@@ -97,7 +97,6 @@ func (m *HubManager) GetOrCreateHub(auctionId string, increment float64, title s
 	hub.HighestBid = RecoveredBid
 	m.hubs[auctionId] = hub
 	go hub.Run()
-
 
 	return hub
 }

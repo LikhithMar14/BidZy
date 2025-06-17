@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-		"github.com/LikhithMar14/BidZy/pkg/types"
+	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
 type bidStore struct {
@@ -33,7 +33,6 @@ func (s *bidStore) PlaceBid(ctx context.Context, bid *types.NewBidRequest) (*typ
 		}
 		return nil, err
 	}
-
 
 	return &newBid, nil
 }

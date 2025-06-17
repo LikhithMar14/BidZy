@@ -68,12 +68,12 @@ func Load() *Config {
 		ApiUrl:      os.Getenv("API_URL"),
 		FrontendUrl: os.Getenv("FRONTEND_URL"),
 		JwtSecret:   os.Getenv("JWT_SECRET"),
-		SMTP:        &mail.SMTPConfig{
-			Host: os.Getenv("SMTP_HOST"),
-			Port: smtpPort,
-			User: os.Getenv("SMTP_USER"),
-			Pass: os.Getenv("SMTP_PASS"),
-			From: os.Getenv("SMTP_FROM"),
+		SMTP: &mail.SMTPConfig{
+			Host:   os.Getenv("SMTP_HOST"),
+			Port:   smtpPort,
+			User:   os.Getenv("SMTP_USER"),
+			Pass:   os.Getenv("SMTP_PASS"),
+			From:   os.Getenv("SMTP_FROM"),
 			Secure: os.Getenv("SMTP_SECURE"),
 		},
 	}

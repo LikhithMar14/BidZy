@@ -134,7 +134,6 @@ func (s *auctionStore) CreateAuction(ctx context.Context, auction *types.CreateA
 	return &newAuction, nil
 }
 
-
 func (s *auctionStore) MarkAuctionsActive(ctx context.Context) error {
 	query := `
 		UPDATE auctions

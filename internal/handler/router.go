@@ -32,8 +32,10 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Use(middleware.RealIP)
 	mux.Use(middleware.RequestID)
 	mux.Use(middleware.Timeout(60 * time.Second))
-	redisRateLimiter := ratelimitmw.NewRedisRateLimiter(app.Rdb, 5, 10) // 5 req/sec, burst 10
-	mux.Use(redisRateLimiter.Middleware)
+	rateLimiter := ratelimitmw.NewHybridRateLimiter(10.0, 50, app.Rdb) 
+	rateLimiter.SetDebug(true) 
+
+	mux.Use(rateLimiter.Middleware)
 
 
 	// Health check

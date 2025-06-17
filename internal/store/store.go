@@ -53,6 +53,7 @@ type BidRepositotry interface {
 	GetUserBids(ctx context.Context, userID string) ([]*types.Bid, error)
 	GetBidCount(ctx context.Context, auctionID string) (int, error)
 	GetBidHistoryWithPagination(ctx context.Context, auctionID string, limit, offset int) ([]*types.Bid, error)
+	GetBidTimelineByAuctionID(ctx context.Context, auctionID string) ([]*types.BidTimelineEntry, error)
 }
 
 type UserRepository interface {

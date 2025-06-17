@@ -7,10 +7,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	ratelimitmw "github.com/LikhithMar14/BidZy/internal/middleware"
 )
 
 func (app *Application) Routes() *chi.Mux {
 	mux := chi.NewRouter()
+
+
+	mux.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"}, 
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token","X-User-ID"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Max age for preflight cache
+	}))
 
 	// Global middlewares
 	mux.Use(middleware.Logger)
@@ -20,6 +32,9 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Use(middleware.RealIP)
 	mux.Use(middleware.RequestID)
 	mux.Use(middleware.Timeout(60 * time.Second))
+	redisRateLimiter := ratelimitmw.NewRedisRateLimiter(app.Rdb, 5, 10) // 5 req/sec, burst 10
+	mux.Use(redisRateLimiter.Middleware)
+
 
 	// Health check
 	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -42,16 +57,15 @@ func (app *Application) Routes() *chi.Mux {
 		r.Post("/login", app.LoginUser)
 		r.Get("/auth/google/login", app.GoogleLoginHandler)
 		r.Get("/auth/google/callback", app.GoogleCallbackHandler)
-		
+
 		// 🔐 Authenticated routes
-		r.With(app.AuthMiddleware).Group(func(protected chi.Router) {
+		r.With(ratelimitmw.AuthMiddleware(app.Config.JwtSecret)).Group(func(protected chi.Router) {
 			// User info
 			protected.Get("/about", app.AboutUser)
 			protected.Get("/categories", app.GetCategories)
-			
 			protected.Get("/stats", app.GetStats)
-			//Auciton Routes
-			
+
+			// Auction Routes
 			protected.Route("/auctions", func(ra chi.Router) {
 				ra.Get("/", app.ListAuctions)
 				ra.Get("/{auctionId}/clients", app.GetAuctionClients)
@@ -61,15 +75,20 @@ func (app *Application) Routes() *chi.Mux {
 				ra.Get("/user/{userId}", app.GetAuctionByUserID)
 				ra.Get("/{auctionId}", app.GetAuctionByID)
 			})
-			//user Routes
 
-			protected.Route("/users", func(ru chi.Router){
+			// User Routes
+			protected.Route("/users", func(ru chi.Router) {
 				ru.Get("/", app.GetUserByID)
 				ru.Get("/auctions", app.GetAuctionsByUserID)
 				ru.Get("/bids", app.GetBidsByUserID)
 				ru.Get("/stats", app.GetOwnStats)
 				ru.Get("/stats/{userId}", app.GetUserStatsByID)
-				ru.Get("/participated-auctions", app.GetParticipatedAuctions)	
+				ru.Get("/participated-auctions", app.GetParticipatedAuctions)
+			})
+
+			// Bid Routes
+			protected.Route("/bids", func(rb chi.Router) {
+				rb.Get("/{auctionId}/timeline", app.GetBidTimelineByAuctionID)
 			})
 		})
 	})

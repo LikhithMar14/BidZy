@@ -253,3 +253,31 @@ func (s *bidStore) GetUserHighestBidOnAuction(ctx context.Context, userID, aucti
 
 	return highestBid, nil
 }
+
+func (s *bidStore) GetBidTimelineByAuctionID(ctx context.Context, auctionID string) ([]*types.BidTimelineEntry, error) {
+	query := `
+		SELECT b.id, b.amount, b.created_at, u.user_name
+		FROM bids b
+		JOIN users u ON b.user_id = u.id
+		WHERE b.auction_id = $1
+		ORDER BY b.created_at ASC;
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, auctionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var timeline []*types.BidTimelineEntry
+	for rows.Next() {
+		var entry types.BidTimelineEntry
+		if err := rows.Scan(&entry.BidID, &entry.Amount, &entry.CreatedAt, &entry.Bidder); err != nil {
+			return nil, err
+		}
+		timeline = append(timeline, &entry)
+	}
+
+	return timeline, nil
+}
+

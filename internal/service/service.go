@@ -5,6 +5,7 @@ import (
 
 	auction "github.com/LikhithMar14/BidZy/internal/service/auction"
 	"github.com/LikhithMar14/BidZy/internal/service/auth"
+	"github.com/LikhithMar14/BidZy/internal/service/bid"
 	"github.com/LikhithMar14/BidZy/internal/service/category"
 	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"github.com/LikhithMar14/BidZy/internal/service/user"
@@ -45,13 +46,17 @@ type UserService interface {
 	GetParticipatedAuctions(ctx context.Context) ([]*types.Auction, error)
 }
 
+type BidService interface {
+	GetBidTimelineByAuctionID(ctx context.Context, auctionID string) ([]*types.BidTimelineEntry, error)
+}
+
 type Service struct {
 	AuthService     AuthService
 	CategoryService CategoryService
 	AuctionService  AuctionService
 	MailService     MailService
 	UserService     UserService
-
+	BidService      BidService
 }
 
 func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Service {
@@ -61,5 +66,6 @@ func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.
 		CategoryService: category.NewCategoryService(store.Category),
 		AuctionService:  auction.NewAuctionHTTP(store.Auction, store.Bid),
 		MailService:     mail.NewMailService(smtpCfg, store.Auction, store.Auth, store.Bid),
+		BidService:      bid.NewBidService(store.Bid),
 	}
 }

@@ -16,7 +16,7 @@ func NewUserService(store store.UserRepository) *UserService {
 	return &UserService{store: store}
 }
 
-	func (s *UserService) GetUserByID(ctx context.Context) (*types.User, error) {
+func (s *UserService) GetUserByID(ctx context.Context) (*types.User, error) {
 	userID, err := types.GetUserIDFromContext(ctx)
 	if err != nil {
 		return nil, err

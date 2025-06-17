@@ -479,3 +479,26 @@ func (app *Application)GetParticipatedAuctions(w http.ResponseWriter, r *http.Re
 		"message": "Participated auctions fetched successfully",
 	})
 }
+
+func (app *Application)GetBidTimelineByAuctionID(w http.ResponseWriter, r *http.Request) {
+	auctionId := chi.URLParam(r, "auctionId")
+	if auctionId == "" {
+		http.Error(w, "Auction ID is required", http.StatusBadRequest)
+		return
+	}
+
+	timeline, err := app.Service.BidService.GetBidTimelineByAuctionID(r.Context(), auctionId)
+	if err != nil {
+		http.Error(w, "Failed to get bid timeline", http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    timeline,
+		"message": "Bid timeline fetched successfully",
+	})
+
+}

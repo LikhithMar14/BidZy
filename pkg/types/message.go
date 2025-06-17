@@ -290,6 +290,12 @@ type Auction struct {
 	UpdatedAt     time.Time
 }
 
+type BidTimelineEntry struct {
+	BidID     string    `json:"bid_id"`
+	Amount    float64   `json:"amount"`
+	CreatedAt time.Time `json:"created_at"`
+	Bidder    string    `json:"bidder"`
+}
 
 type CreateAuctionResponse struct {
 	ID            string    `json:"id"`

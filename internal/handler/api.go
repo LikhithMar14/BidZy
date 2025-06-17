@@ -14,10 +14,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type Service struct {
-	AuthService    *service.AuthService
-	AuctionService *service.AuctionService
-}
+// type Service struct {
+// 	AuthService    *service.AuthService
+// 	AuctionService *service.AuctionService
+	
+// }
 
 type Application struct {
 	Config     *Config
@@ -31,14 +32,14 @@ type Application struct {
 
 func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Application {
 
-	service := service.NewService(store, cfg.JwtSecret, googleOauthClient, smtpCfg)
+	svc := service.NewService(store, cfg.JwtSecret, googleOauthClient, smtpCfg)
 	return &Application{
 		Config:     cfg,
 		Logger:     logger,
 		Version:    version,
 		HubManager: hubManager,
 		Rdb:        rdb,
-		Service:    service,
+		Service:    svc,
 		SMTPConfig: smtpCfg,
 	}
 }

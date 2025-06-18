@@ -106,3 +106,35 @@ func (s *authStore) GetUserByID(ctx context.Context, id string) (*types.User, er
 
 	return &user, nil
 }
+
+func (s *authStore) GetUserByEmail(ctx context.Context, email string) (*types.User, error) {
+	if email == "" {
+		return nil, errors.New("email is required")
+	}
+
+	query := `SELECT id, user_name, email, hashed_password, created_at, updated_at 
+	          FROM users 
+	          WHERE email = $1;`
+
+	var user types.User
+
+	err := s.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.UserName,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Println("User not found")
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil	
+}

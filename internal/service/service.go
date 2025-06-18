@@ -19,6 +19,7 @@ type AuthService interface {
 	Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error)
 	GetUserInfoFromGoogle(ctx context.Context, code string) (map[string]interface{}, error)
 	GetGoogleLoginURL(state string) string
+	GetUserByEmail(ctx context.Context, email string) (*types.User, error)
 }
 
 type CategoryService interface {
@@ -61,7 +62,7 @@ type Service struct {
 
 func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Service {
 	return &Service{
-		AuthService: auth.NewAuthService(store.Auth, jwtSecret, googleOauthClient),
+		AuthService: auth.NewAuthService(store.Auth,jwtSecret,googleOauthClient),
 		UserService: user.NewUserService(store.User),
 		CategoryService: category.NewCategoryService(store.Category),
 		AuctionService:  auction.NewAuctionHTTP(store.Auction, store.Bid),

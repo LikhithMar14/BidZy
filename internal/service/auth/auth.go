@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -54,16 +55,27 @@ func (s *AuthService) Register(ctx context.Context, req *types.CreateUserRequest
 }
 
 func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error) {
-	user, err := s.store.GetUserByEmailAndUserName(ctx, req.Email, req.UserName)
-	log.Println("user", user)
-	log.Println("err", err)
+	fmt.Println("I AM HERE IN LOGIN SERVICE")
+	user, err := s.store.GetUserByEmail(ctx, req.Email)
+
+	fmt.Println("THIS IS THE USER IN LOGIN SERVICE", user)
+	fmt.Println("THIS IS THE ERROR IN LOGIN SERVICE", err)
 	if err != nil {
 		return nil, err
 	}
-	if user == nil || !utils.CheckPasswordHash(req.Password, user.Password) {
-		return nil, errors.New("invalid credentials")
+	if user == nil {
+		fmt.Println("USER NOT FOUND IN LOGIN SERVICE")
+		return nil, errors.New("user not found")
 	}
+	fmt.Println("PASSWORD IN THE REQUEST", req.Password)
+	fmt.Println("PASSWORD IN THE USER", user.Password)
+	
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		fmt.Println("INVALID CREDENTIALS IN LOGIN SERVICE")
+		return nil, errors.New("invalid credentials")
+	}	
 	token := s.generateToken(user.UserName, user.Email, "user", user.ID)
+	fmt.Println("THIS IS THE TOKEN IN LOGIN SERVICE", token)
 	return &types.LoginResponse{Token: token}, nil
 }
 
@@ -163,4 +175,15 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 			"message": "User logged in successfully",
 		},
 	}, nil
+}
+
+func (s *AuthService) GetUserByEmail(ctx context.Context, email string) (*types.User, error) {
+	user, err := s.store.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	return user, nil
 }

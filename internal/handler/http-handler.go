@@ -75,8 +75,11 @@ func (app *Application) LoginUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	fmt.Println("I AM HERE IN LOGIN HANDLER")
 
 	userResponse, err := app.Service.AuthService.Login(ctx, &user)
+	fmt.Println("THIS IS THE USER RESPONSE", userResponse)
+	fmt.Println("THIS IS THE ERROR", err)
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid credentials") {
 			w.WriteHeader(http.StatusUnauthorized)

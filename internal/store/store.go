@@ -24,6 +24,7 @@ type AuthRepository interface {
 	CreateUser(ctx context.Context, user *types.CreateUserRequest, hashedPassword string) (*types.User, error)
 	GetUserByEmailAndUserName(ctx context.Context, email, userName string) (*types.User, error)
 	GetUserByID(ctx context.Context, id string) (*types.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*types.User, error)
 }
 
 type CategoryRepository interface {

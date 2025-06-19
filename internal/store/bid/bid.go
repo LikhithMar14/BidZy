@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
@@ -66,8 +65,7 @@ func (s *bidStore) GetBidByID(ctx context.Context, id string) (*types.Bid, error
 }
 
 func (s *bidStore) GetBidsByAuctionID(ctx context.Context, auctionID string) ([]*types.Bid, error) {
-	fmt.Println("==== GETTING BIDS BY AUCTION ID ====")
-	fmt.Println("auctionID", auctionID)
+
 	query := `
 		SELECT b.id, b.amount, b.created_at, u.user_name as bidder_name, b.user_id
 		FROM bids b
@@ -101,8 +99,6 @@ func (s *bidStore) GetBidsByAuctionID(ctx context.Context, auctionID string) ([]
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	fmt.Println("==== BIDS ====")
-	fmt.Println("bids", bids)
 
 	return bids, nil
 }
@@ -280,4 +276,3 @@ func (s *bidStore) GetBidTimelineByAuctionID(ctx context.Context, auctionID stri
 
 	return timeline, nil
 }
-

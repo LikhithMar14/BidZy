@@ -603,12 +603,14 @@ func (s *auctionStore) RemoveAllCategoriesFromAuction(ctx context.Context, aucti
 // This is used by the scheduler to send notification emails
 func (s *auctionStore) GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error) {
 	// Find auctions that have ended in the last minute
-	// This ensures we only process newly ended auctions
+	// AND exclude those that already have emails sent
 	query := `
-		SELECT id 
-		FROM auctions 
-		WHERE status = 'ENDED' 
-		AND updated_at >= NOW() - INTERVAL '1 minute'
+		SELECT a.id 
+		FROM auctions a
+		LEFT JOIN auction_email_logs l ON a.id = l.auction_id
+		WHERE a.status = 'ENDED' 
+		AND a.updated_at >= NOW() - INTERVAL '1 minute'
+		AND l.auction_id IS NULL
 	`
 
 	rows, err := s.db.QueryContext(ctx, query)
@@ -640,7 +642,7 @@ func (a *auctionStore) HasAuctionEmailBeenSent(ctx context.Context, auctionID st
 }
 
 func (a *auctionStore) LogAuctionEmailSent(ctx context.Context, auctionID string) error {
-	query := `INSERT INTO auction_email_logs (auction_id) VALUES ($1)`
+	query := `INSERT INTO auction_email_logs (auction_id) VALUES ($1) ON CONFLICT (auction_id) DO NOTHING`
 	_, err := a.db.ExecContext(ctx, query, auctionID)
 	return err
 }

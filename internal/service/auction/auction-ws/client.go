@@ -132,8 +132,25 @@ func (c *Client) handleAuctionMessage(msg *types.Message) {
 }
 
 func (c *Client) handleBidMessage(msg *types.Message) {
-	log.Printf("Bid message: %+v", msg)
-	if msg.Action == types.ActionPlaceBid && msg.BiddingPrice > 0 {
+	// Validate bid input
+	if msg.Action != types.ActionPlaceBid {
+		log.Printf("Invalid bid action from client %s: %s", c.ID, msg.Action)
+		c.sendErrorMessage("Invalid bid action")
+		return
+	}
+
+	if msg.BiddingPrice <= 0 {
+		log.Printf("Invalid bid price from client %s: %f", c.ID, msg.BiddingPrice)
+		c.sendErrorMessage("Bid price must be positive")
+		return
+	}
+
+	if msg.BiddingPrice > 1_000_000_000 {
+		log.Printf("Bid price too large from client %s: %f", c.ID, msg.BiddingPrice)
+		c.sendErrorMessage("Bid price too large")
+		return
+	}
+
 		bid := &Bid{
 			SenderID: msg.SenderID,
 			Price:    msg.BiddingPrice,
@@ -148,10 +165,6 @@ func (c *Client) handleBidMessage(msg *types.Message) {
 		case <-time.After(ChannelTimeout):
 			log.Printf("Timeout submitting bid from client %s", c.ID)
 			c.sendErrorMessage("Bid submission timeout")
-		}
-	} else {
-		log.Printf("Invalid bid from client %s: price %f, action %s", c.ID, msg.BiddingPrice, msg.Action)
-		c.sendErrorMessage("Invalid bid parameters")
 	}
 }
 

@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"database/sql"
+	"errors"
+
 	"github.com/LikhithMar14/BidZy/pkg/types"
 )
 
@@ -13,9 +15,6 @@ type userStore struct {
 func NewUserRepository(db *sql.DB) *userStore {
 	return &userStore{db: db}
 }
-
-
-
 
 func (s *userStore) GetUserByID(ctx context.Context, userID string) (*types.User, error) {
 	query := `
@@ -28,6 +27,9 @@ func (s *userStore) GetUserByID(ctx context.Context, userID string) (*types.User
 		&u.ID, &u.UserName, &u.Email, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // User not found
+		}
 		return nil, err
 	}
 	return &u, nil
@@ -62,7 +64,6 @@ func (s *userStore) GetAuctionsByUserID(ctx context.Context, userID string) ([]*
 	return auctions, nil
 }
 
-
 func (s *userStore) GetBidsByUserID(ctx context.Context, userID string) ([]*types.Bid, error) {
 	query := `
 		SELECT 
@@ -91,7 +92,6 @@ func (s *userStore) GetBidsByUserID(ctx context.Context, userID string) ([]*type
 	}
 	return bids, nil
 }
-
 
 func (s *userStore) GetUserStats(ctx context.Context, userID string) (*types.UserStats, error) {
 	query := `
@@ -132,7 +132,6 @@ func (s *userStore) GetUserStats(ctx context.Context, userID string) (*types.Use
 	}
 	return &stats, nil
 }
-
 
 func (s *userStore) GetParticipatedAuctions(ctx context.Context, userID string) ([]*types.Auction, error) {
 	query := `

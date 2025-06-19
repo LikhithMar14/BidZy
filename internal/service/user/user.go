@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/LikhithMar14/BidZy/internal/store"
@@ -21,7 +22,14 @@ func (s *UserService) GetUserByID(ctx context.Context) (*types.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.store.GetUserByID(ctx, userID)
+	user, err := s.store.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	return user, nil
 }
 
 func (s *UserService) GetAuctionsByUserID(ctx context.Context) ([]*types.Auction, error) {
@@ -49,7 +57,6 @@ func (s *UserService) GetParticipatedAuctions(ctx context.Context) ([]*types.Auc
 	return s.store.GetParticipatedAuctions(ctx, userID)
 }
 
-
 func (s *UserService) GetOwnStats(ctx context.Context) (*types.UserStats, error) {
 	userID, err := types.GetUserIDFromContext(ctx)
 	if err != nil {
@@ -57,7 +64,6 @@ func (s *UserService) GetOwnStats(ctx context.Context) (*types.UserStats, error)
 	}
 	return s.store.GetUserStats(ctx, userID)
 }
-
 
 func (s *UserService) GetUserStatsByID(ctx context.Context) (*types.UserStats, error) {
 	userID, err := types.GetUserIDFromContext(ctx)

@@ -28,8 +28,15 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
-		logger.Fatalw("failed to load environment variables", "error", err)
+		logger.Warnw("failed to load .env file, using system environment variables", "error", err)
 	}
+
+	// Debug: Log key environment variables
+	logger.Infow("Environment check",
+		"DB_ADDR", os.Getenv("DB_ADDR"),
+		"JWT_SECRET", len(os.Getenv("JWT_SECRET")),
+		"PORT", os.Getenv("PORT"),
+	)
 
 	smtpCfg, err := mail.Load()
 	if err != nil {

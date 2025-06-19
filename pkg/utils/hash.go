@@ -18,6 +18,10 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 func GenerateOAuthState(length int) (string, error) {
+	if length < 16 {
+		length = 32 // Use at least 32 bytes for security
+	}
+
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
 		return "", err

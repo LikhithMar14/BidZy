@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -15,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var oauthStateString, _ = utils.GenerateOAuthState(12)
+var oauthStateString, _ = utils.GenerateOAuthState(32)
 
 func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -34,11 +33,32 @@ func (app *Application) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	userResponse, err := app.Service.AuthService.Register(ctx, &user)
 	if err != nil {
+		// Log the actual error for debugging
+		app.Logger.Errorw("Registration failed", "error", err.Error())
+
 		if strings.Contains(err.Error(), "user already exists") {
 			w.WriteHeader(http.StatusConflict)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"success": false,
 				"message": "User already exists",
+				"data":    nil,
+			})
+			return
+		}
+
+		// Check for validation errors (should be 400 Bad Request)
+		if strings.Contains(err.Error(), "email") ||
+			strings.Contains(err.Error(), "username") ||
+			strings.Contains(err.Error(), "password") ||
+			strings.Contains(err.Error(), "required") ||
+			strings.Contains(err.Error(), "invalid") ||
+			strings.Contains(err.Error(), "format") ||
+			strings.Contains(err.Error(), "characters") ||
+			strings.Contains(err.Error(), "length") {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": err.Error(),
 				"data":    nil,
 			})
 			return
@@ -75,13 +95,9 @@ func (app *Application) LoginUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	fmt.Println("I AM HERE IN LOGIN HANDLER")
-
 	userResponse, err := app.Service.AuthService.Login(ctx, &user)
-	fmt.Println("THIS IS THE USER RESPONSE", userResponse)
-	fmt.Println("THIS IS THE ERROR", err)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid credentials") {
+		if strings.Contains(err.Error(), "invalid credentials") || strings.Contains(err.Error(), "user not found") {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"success": false,
@@ -177,8 +193,16 @@ func (app *Application) GetAuctionByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auction, err := app.Service.AuctionService.GetAuctionByID(r.Context(), auctionId)
-	fmt.Println("AUCTION FROM HANDLER:", auction)
 	if err != nil {
+		if strings.Contains(err.Error(), "auction not found") {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Auction not found",
+				"data":    nil,
+			})
+			return
+		}
 		http.Error(w, "Failed to get auction", http.StatusInternalServerError)
 		return
 	}
@@ -233,11 +257,29 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	log.Println("👉 claims:", claims)
-	log.Println("👉 userID before calling CreateAuction:", req.UserID)
-	log.Println("👉 claims.UserID:", claims.UserID)
 	req.UserID = claims.UserID
-	log.Println("USER ID:", req.UserID)
+
+	// Validate auction input
+	if err := utils.ValidateAuctionTitle(req.Title); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := utils.ValidateAuctionDescription(req.Description); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := utils.ValidatePrice(req.StartingPrice, "starting price"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := utils.ValidatePrice(req.Increment, "increment"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Sanitize inputs
+	req.Title = utils.SanitizeString(req.Title)
+	req.Description = utils.SanitizeString(req.Description)
 
 	if req.Increment <= 0 {
 		req.Increment = 100.0
@@ -248,16 +290,13 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	log.Println("👉 userID before calling CreateAuction:", req.UserID)
+
 	createdAuction, err := app.Service.AuctionService.CreateAuction(ctx, &req, req.CategoryIDs, req.UserID)
 	if err != nil {
-		log.Printf("Failed to persist auction: %v", err)
+		app.Logger.Errorw("Failed to persist auction", "error", err)
 		http.Error(w, "Failed to create auction", http.StatusInternalServerError)
 		return
 	}
-
-	fmt.Println("AUCTION FROM HANDLER:", createdAuction)
-	fmt.Println("++Auction ID:++", createdAuction.AuctionID)
 
 	hub := app.HubManager.CreateHub(
 		createdAuction.AuctionID,
@@ -388,6 +427,15 @@ func (app *Application) GetUserByID(w http.ResponseWriter, r *http.Request) {
 
 	user, err := app.Service.UserService.GetUserByID(r.Context())
 	if err != nil {
+		if strings.Contains(err.Error(), "user not found") {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "User not found",
+				"data":    nil,
+			})
+			return
+		}
 		http.Error(w, "Failed to get user", http.StatusInternalServerError)
 		return
 	}
@@ -400,7 +448,6 @@ func (app *Application) GetUserByID(w http.ResponseWriter, r *http.Request) {
 		"message": "User fetched successfully",
 	})
 }
-
 
 func (app *Application) GetAuctionsByUserID(w http.ResponseWriter, r *http.Request) {
 	auctions, err := app.Service.UserService.GetAuctionsByUserID(r.Context())
@@ -418,7 +465,7 @@ func (app *Application) GetAuctionsByUserID(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (app *Application)GetBidsByUserID(w http.ResponseWriter, r *http.Request) {
+func (app *Application) GetBidsByUserID(w http.ResponseWriter, r *http.Request) {
 	bids, err := app.Service.UserService.GetBidsByUserID(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get bids", http.StatusInternalServerError)
@@ -434,8 +481,7 @@ func (app *Application)GetBidsByUserID(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
-func (app *Application)GetOwnStats(w http.ResponseWriter, r *http.Request) {
+func (app *Application) GetOwnStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := app.Service.UserService.GetOwnStats(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
@@ -451,7 +497,7 @@ func (app *Application)GetOwnStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (app *Application)GetUserStatsByID(w http.ResponseWriter, r *http.Request) {
+func (app *Application) GetUserStatsByID(w http.ResponseWriter, r *http.Request) {
 	stats, err := app.Service.UserService.GetUserStatsByID(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
@@ -467,7 +513,7 @@ func (app *Application)GetUserStatsByID(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (app *Application)GetParticipatedAuctions(w http.ResponseWriter, r *http.Request) {
+func (app *Application) GetParticipatedAuctions(w http.ResponseWriter, r *http.Request) {
 	auctions, err := app.Service.UserService.GetParticipatedAuctions(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to get auctions", http.StatusInternalServerError)
@@ -483,7 +529,7 @@ func (app *Application)GetParticipatedAuctions(w http.ResponseWriter, r *http.Re
 	})
 }
 
-func (app *Application)GetBidTimelineByAuctionID(w http.ResponseWriter, r *http.Request) {
+func (app *Application) GetBidTimelineByAuctionID(w http.ResponseWriter, r *http.Request) {
 	auctionId := chi.URLParam(r, "auctionId")
 	if auctionId == "" {
 		http.Error(w, "Auction ID is required", http.StatusBadRequest)
@@ -495,7 +541,7 @@ func (app *Application)GetBidTimelineByAuctionID(w http.ResponseWriter, r *http.
 		http.Error(w, "Failed to get bid timeline", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{

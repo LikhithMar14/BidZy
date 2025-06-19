@@ -5,20 +5,19 @@ import (
 	"net/http"
 	"time"
 
+	ratelimitmw "github.com/LikhithMar14/BidZy/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	ratelimitmw "github.com/LikhithMar14/BidZy/internal/middleware"
 )
 
 func (app *Application) Routes() *chi.Mux {
 	mux := chi.NewRouter()
 
-
 	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"}, 
+		AllowedOrigins:   []string{"http://localhost:3000"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token","X-User-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-User-ID"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300, // Max age for preflight cache
@@ -32,11 +31,18 @@ func (app *Application) Routes() *chi.Mux {
 	mux.Use(middleware.RealIP)
 	mux.Use(middleware.RequestID)
 	mux.Use(middleware.Timeout(60 * time.Second))
-	rateLimiter := ratelimitmw.NewHybridRateLimiter(10.0, 50, app.Rdb) 
-	rateLimiter.SetDebug(true) 
+
+	// Request size limit (1MB)
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
+			next.ServeHTTP(w, r)
+		})
+	})
+	rateLimiter := ratelimitmw.NewHybridRateLimiter(10.0, 50, app.Rdb)
+	rateLimiter.SetDebug(true)
 
 	mux.Use(rateLimiter.Middleware)
-
 
 	// Health check
 	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -70,9 +76,9 @@ func (app *Application) Routes() *chi.Mux {
 			// Auction Routes
 			protected.Route("/auctions", func(ra chi.Router) {
 				ra.Get("/", app.ListAuctions)
+				ra.Post("/", app.CreateAuction)
 				ra.Get("/{auctionId}/clients", app.GetAuctionClients)
 				ra.Get("/{auctionId}/bids", app.GetAuctionBids)
-				ra.Post("/{auctionId}/create", app.CreateAuction)
 				ra.Delete("/{auctionId}", app.DeleteAuction)
 				ra.Get("/user/{userId}", app.GetAuctionByUserID)
 				ra.Get("/{auctionId}", app.GetAuctionByID)

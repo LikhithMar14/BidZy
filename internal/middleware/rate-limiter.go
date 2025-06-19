@@ -3,12 +3,12 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-	"log"
 
 	"github.com/LikhithMar14/BidZy/pkg/types"
 	"github.com/redis/go-redis/v9"
@@ -16,11 +16,11 @@ import (
 
 // TokenBucket represents an in-memory token bucket
 type TokenBucket struct {
-	tokens       float64
-	lastRefresh  time.Time
-	rate         float64 // tokens per second
-	capacity     int     // maximum tokens
-	mu           sync.Mutex
+	tokens      float64
+	lastRefresh time.Time
+	rate        float64 // tokens per second
+	capacity    int     // maximum tokens
+	mu          sync.Mutex
 }
 
 // NewTokenBucket creates a new token bucket
@@ -40,7 +40,7 @@ func (tb *TokenBucket) TryConsume(tokens int) bool {
 
 	now := time.Now()
 	elapsed := now.Sub(tb.lastRefresh).Seconds()
-	
+
 	// Add tokens based on elapsed time
 	tb.tokens = min(float64(tb.capacity), tb.tokens+elapsed*tb.rate)
 	tb.lastRefresh = now
@@ -50,7 +50,7 @@ func (tb *TokenBucket) TryConsume(tokens int) bool {
 		tb.tokens -= float64(tokens)
 		return true
 	}
-	
+
 	return false
 }
 
@@ -58,31 +58,31 @@ func (tb *TokenBucket) TryConsume(tokens int) bool {
 func (tb *TokenBucket) GetTokens() float64 {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
-	
+
 	now := time.Now()
 	elapsed := now.Sub(tb.lastRefresh).Seconds()
 	tb.tokens = min(float64(tb.capacity), tb.tokens+elapsed*tb.rate)
 	tb.lastRefresh = now
-	
+
 	return tb.tokens
 }
 
 // HybridRateLimiter combines in-memory buckets with Redis for distributed limiting
 type HybridRateLimiter struct {
 	// In-memory buckets for high-frequency requests
-	buckets    sync.Map
-	rate       float64
-	capacity   int
-	
+	buckets  sync.Map
+	rate     float64
+	capacity int
+
 	// Redis for distributed coordination (optional)
-	rdb        *redis.Client
-	useRedis   bool
-	
+	rdb      *redis.Client
+	useRedis bool
+
 	// Configuration
 	cleanupInterval time.Duration
 	bucketTTL       time.Duration
-	debug          bool
-	
+	debug           bool
+
 	// Cleanup goroutine control
 	stopCleanup chan struct{}
 	cleanupWG   sync.WaitGroup
@@ -100,10 +100,10 @@ func NewHybridRateLimiter(rate float64, capacity int, rdb *redis.Client) *Hybrid
 		debug:           false,
 		stopCleanup:     make(chan struct{}),
 	}
-	
+
 	// Start cleanup goroutine
 	rl.startCleanup()
-	
+
 	return rl
 }
 
@@ -119,7 +119,7 @@ func (rl *HybridRateLimiter) startCleanup() {
 		defer rl.cleanupWG.Done()
 		ticker := time.NewTicker(rl.cleanupInterval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -134,7 +134,7 @@ func (rl *HybridRateLimiter) startCleanup() {
 // cleanupOldBuckets removes old unused buckets
 func (rl *HybridRateLimiter) cleanupOldBuckets() {
 	cutoff := time.Now().Add(-rl.bucketTTL)
-	
+
 	rl.buckets.Range(func(key, value interface{}) bool {
 		if bucket, ok := value.(*TokenBucket); ok {
 			bucket.mu.Lock()
@@ -161,7 +161,7 @@ func (rl *HybridRateLimiter) getBucket(key string) *TokenBucket {
 	if bucket, ok := rl.buckets.Load(key); ok {
 		return bucket.(*TokenBucket)
 	}
-	
+
 	newBucket := NewTokenBucket(rl.rate, rl.capacity)
 	actual, _ := rl.buckets.LoadOrStore(key, newBucket)
 	return actual.(*TokenBucket)
@@ -178,18 +178,18 @@ func (rl *HybridRateLimiter) Middleware(next http.Handler) http.Handler {
 
 		// Get client identifier
 		key := rl.getClientKey(r)
-		
+
 		// Check rate limit using in-memory bucket
 		allowed := rl.checkRateLimit(key, 1)
-		
+
 		if !allowed {
 			if rl.debug {
 				log.Printf("RateLimit: BLOCKED request for key=%s, path=%s", key, r.URL.Path)
 			}
-			
+
 			bucket := rl.getBucket(key)
 			remaining := int(bucket.GetTokens())
-			
+
 			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rl.capacity))
 			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Second).Unix()))
@@ -216,9 +216,9 @@ func (rl *HybridRateLimiter) checkRateLimit(key string, tokens int) bool {
 // getClientKey generates a unique key for rate limiting
 func (rl *HybridRateLimiter) getClientKey(r *http.Request) string {
 	// If user is authenticated, use user ID as the key
-	if ctxUser := r.Context().Value("user"); ctxUser != nil {
+	if ctxUser := r.Context().Value(types.UserContextKey); ctxUser != nil {
 		if claims, ok := ctxUser.(*types.UserClaims); ok {
-			return "user:" + claims.ID
+			return "user:" + claims.UserID
 		}
 	}
 
@@ -262,7 +262,7 @@ func (rl *HybridRateLimiter) Reset(key string) {
 func (rl *HybridRateLimiter) GetStats(key string) map[string]interface{} {
 	bucket := rl.getBucket(key)
 	tokens := bucket.GetTokens()
-	
+
 	return map[string]interface{}{
 		"key":       key,
 		"tokens":    tokens,
@@ -277,7 +277,7 @@ func (rl *HybridRateLimiter) DebugHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := rl.getClientKey(r)
 		stats := rl.GetStats(key)
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{
 	"key": "%s",
@@ -285,11 +285,11 @@ func (rl *HybridRateLimiter) DebugHandler() http.HandlerFunc {
 	"rate": %.2f,
 	"capacity": %d,
 	"remaining": %d
-}`, 
-			stats["key"], 
-			stats["tokens"], 
-			stats["rate"], 
-			stats["capacity"], 
+}`,
+			stats["key"],
+			stats["tokens"],
+			stats["rate"],
+			stats["capacity"],
 			stats["remaining"])
 	}
 }
@@ -302,7 +302,7 @@ func (rl *HybridRateLimiter) StatsHandler() http.HandlerFunc {
 			bucketCount++
 			return true
 		})
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{
 	"active_buckets": %d,
@@ -354,27 +354,27 @@ func (rl *HybridRateLimiter) CheckGlobalLimit(key string, window int, limit int)
 	if !rl.useRedis {
 		return true, nil
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
-	result, err := rl.rdb.Eval(ctx, redisRateLimitScript, 
+
+	result, err := rl.rdb.Eval(ctx, redisRateLimitScript,
 		[]string{"global:" + key}, window, limit, time.Now().Unix()).Result()
-	
+
 	if err != nil {
 		// Fail open on Redis errors
 		return true, err
 	}
-	
+
 	resultSlice, ok := result.([]interface{})
 	if !ok || len(resultSlice) < 2 {
 		return true, fmt.Errorf("unexpected result format")
 	}
-	
+
 	remaining, ok := resultSlice[1].(int64)
 	if !ok {
 		return true, fmt.Errorf("invalid remaining value")
 	}
-	
+
 	return remaining > 0, nil
 }

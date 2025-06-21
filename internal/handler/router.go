@@ -58,6 +58,9 @@ func (app *Application) Routes() *chi.Mux {
 	// WebSocket join (public)
 	mux.Get("/join-auction", app.JoinAuction)
 
+	// S3 Upload route (public)
+	mux.Post("/api/v1/upload", app.Uploader.HandleGetPresignedURL)
+
 	// API v1 routes
 	mux.Route("/api/v1", func(r chi.Router) {
 		// Public routes
@@ -82,6 +85,11 @@ func (app *Application) Routes() *chi.Mux {
 				ra.Delete("/{auctionId}", app.DeleteAuction)
 				ra.Get("/user/{userId}", app.GetAuctionByUserID)
 				ra.Get("/{auctionId}", app.GetAuctionByID)
+			})
+
+			// Image Upload Routes
+			protected.Route("/upload", func(ru chi.Router) {
+				ru.Post("/auction-image", app.GenerateAuctionImageUploadURL)
 			})
 
 			// User Routes

@@ -44,6 +44,7 @@ type AuctionRepository interface {
 	GetRecentlyEndedAuctionIDs(ctx context.Context) ([]string, error)
 	HasAuctionEmailBeenSent(ctx context.Context, auctionID string) (bool, error)
 	LogAuctionEmailSent(ctx context.Context, auctionID string) error
+	UpdateAuctionClientCount(ctx context.Context, auctionID string, clientCount int) error
 }
 
 type BidRepositotry interface {

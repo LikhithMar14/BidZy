@@ -37,11 +37,22 @@ func (s *userStore) GetUserByID(ctx context.Context, userID string) (*types.User
 
 func (s *userStore) GetAuctionsByUserID(ctx context.Context, userID string) ([]*types.Auction, error) {
 	query := `
-		SELECT id, title, description, starting_price, current_price, increment,
-		       start_date, end_date, status, image, client_count, created_at, updated_at
-		FROM auctions
-		WHERE user_id = $1
-		ORDER BY created_at DESC
+		SELECT 
+			a.id, a.title, a.description, a.starting_price, a.current_price, a.increment,
+			a.start_date, a.end_date, a.status, a.image, a.created_at, a.updated_at,
+			COALESCE(winner.user_name, '') as winner_name
+		FROM auctions a
+		LEFT JOIN (
+			SELECT DISTINCT ON (b.auction_id) 
+				b.auction_id, 
+				u.user_name
+			FROM bids b
+			JOIN users u ON b.user_id = u.id
+			WHERE b.auction_id IN (SELECT id FROM auctions WHERE user_id = $1)
+			ORDER BY b.auction_id, b.amount DESC, b.created_at ASC
+		) winner ON a.id = winner.auction_id AND a.status = 'ENDED'
+		WHERE a.user_id = $1
+		ORDER BY a.created_at DESC
 	`
 	rows, err := s.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -54,13 +65,29 @@ func (s *userStore) GetAuctionsByUserID(ctx context.Context, userID string) ([]*
 		var a types.Auction
 		err := rows.Scan(
 			&a.ID, &a.Title, &a.Description, &a.StartingPrice, &a.CurrentPrice, &a.Increment,
-			&a.StartDate, &a.EndDate, &a.Status, &a.Image, &a.ClientCount, &a.CreatedAt, &a.UpdatedAt,
+			&a.StartDate, &a.EndDate, &a.Status, &a.Image, &a.CreatedAt, &a.UpdatedAt, &a.WinnerName,
 		)
 		if err != nil {
 			return nil, err
 		}
 		auctions = append(auctions, &a)
 	}
+
+	// Calculate client count for each auction based on distinct bidders
+	for _, auction := range auctions {
+		clientCountQuery := `
+			SELECT COUNT(DISTINCT user_id) 
+			FROM bids 
+			WHERE auction_id = $1
+		`
+		var clientCount int
+		err := s.db.QueryRowContext(ctx, clientCountQuery, auction.ID).Scan(&clientCount)
+		if err != nil {
+			return nil, err
+		}
+		auction.ClientCount = clientCount
+	}
+
 	return auctions, nil
 }
 
@@ -137,10 +164,19 @@ func (s *userStore) GetParticipatedAuctions(ctx context.Context, userID string) 
 	query := `
 		SELECT DISTINCT ON (a.id)
 			a.id, a.title, a.description, a.starting_price, a.current_price, a.increment,
-			a.start_date, a.end_date, a.status, a.image, a.client_count,
-			a.created_at, a.updated_at
+			a.start_date, a.end_date, a.status, a.image,
+			a.created_at, a.updated_at,
+			COALESCE(winner.user_name, '') as winner_name
 		FROM bids b
 		JOIN auctions a ON b.auction_id = a.id
+		LEFT JOIN (
+			SELECT DISTINCT ON (b2.auction_id) 
+				b2.auction_id, 
+				u.user_name
+			FROM bids b2
+			JOIN users u ON b2.user_id = u.id
+			ORDER BY b2.auction_id, b2.amount DESC, b2.created_at ASC
+		) winner ON a.id = winner.auction_id AND a.status = 'ENDED'
 		WHERE b.user_id = $1
 		ORDER BY a.id, b.created_at DESC
 	`
@@ -156,13 +192,29 @@ func (s *userStore) GetParticipatedAuctions(ctx context.Context, userID string) 
 		var a types.Auction
 		err := rows.Scan(
 			&a.ID, &a.Title, &a.Description, &a.StartingPrice, &a.CurrentPrice, &a.Increment,
-			&a.StartDate, &a.EndDate, &a.Status, &a.Image, &a.ClientCount,
-			&a.CreatedAt, &a.UpdatedAt,
+			&a.StartDate, &a.EndDate, &a.Status, &a.Image,
+			&a.CreatedAt, &a.UpdatedAt, &a.WinnerName,
 		)
 		if err != nil {
 			return nil, err
 		}
 		auctions = append(auctions, &a)
 	}
+
+	// Calculate client count for each auction based on distinct bidders
+	for _, auction := range auctions {
+		clientCountQuery := `
+			SELECT COUNT(DISTINCT user_id) 
+			FROM bids 
+			WHERE auction_id = $1
+		`
+		var clientCount int
+		err := s.db.QueryRowContext(ctx, clientCountQuery, auction.ID).Scan(&clientCount)
+		if err != nil {
+			return nil, err
+		}
+		auction.ClientCount = clientCount
+	}
+
 	return auctions, nil
 }

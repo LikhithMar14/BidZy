@@ -248,6 +248,7 @@ type CreateAuctionRequest struct {
 	Duration      int       `json:"durationHours"`
 	UserID        string    `json:"userId"`
 	Image         string    `json:"image"`
+	ImageKey      string    `json:"imageKey,omitempty"`
 	CategoryIDs   []int     `json:"categoryIds"`
 	StartDateTime time.Time `json:"startDateTime"`
 	EndDateTime   time.Time `json:"endDateTime"`
@@ -286,6 +287,7 @@ type Auction struct {
 	Status        string
 	Image         string
 	ClientCount   int
+	WinnerName    string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

@@ -131,18 +131,82 @@ func (app *Application) GoogleLoginHandler(w http.ResponseWriter, r *http.Reques
 
 func (app *Application) GoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("state") != oauthStateString {
-		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Invalid state parameter",
+			"data":    nil,
+		})
 		return
 	}
 
-	userInfo, err := app.Service.AuthService.GetUserInfoFromGoogle(r.Context(), r.FormValue("code"))
+	userResponse, err := app.Service.AuthService.GetUserInfoFromGoogle(r.Context(), r.FormValue("code"))
 	if err != nil {
-		http.Error(w, "Failed to get user info: "+err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "Failed to get user info: " + err.Error(),
+			"data":    nil,
+		})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(userInfo)
+	// Set authentication data in HTTP cookies
+	// Token cookie (HttpOnly for security)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    userResponse.Token,
+		Path:     "/",
+		MaxAge:   24 * 60 * 60, // 24 hours
+		HttpOnly: true,
+		Secure:   false, // Set to true in production with HTTPS
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// // User info cookies (accessible to frontend)
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "user_id",
+	// 	Value:    userResponse.User.ID,
+	// 	Path:     "/",
+	// 	MaxAge:   24 * 60 * 60,
+	// 	HttpOnly: false,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "username",
+	// 	Value:    userResponse.User.UserName,
+	// 	Path:     "/",
+	// 	MaxAge:   24 * 60 * 60,
+	// 	HttpOnly: false,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "email",
+	// 	Value:    userResponse.User.Email,
+	// 	Path:     "/",
+	// 	MaxAge:   24 * 60 * 60,
+	// 	HttpOnly: false,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	// http.SetCookie(w, &http.Cookie{
+	// 	Name:     "is_new_user",
+	// 	Value:    fmt.Sprintf("%t", userResponse.IsNewUser),
+	// 	Path:     "/",
+	// 	MaxAge:   60, // Short lived cookie for one-time check
+	// 	HttpOnly: false,
+	// 	Secure:   false,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	// Redirect to frontend without sensitive data in URL
+	redirectURL := "http://localhost:3000/auth/callback?success=true"
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 func (app *Application) AboutUser(w http.ResponseWriter, r *http.Request) {
@@ -277,6 +341,12 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate image - either direct URL or S3 imageKey should be provided
+	if req.Image == "" && req.ImageKey == "" {
+		http.Error(w, "Image URL or imageKey is required", http.StatusBadRequest)
+		return
+	}
+
 	// Sanitize inputs
 	req.Title = utils.SanitizeString(req.Title)
 	req.Description = utils.SanitizeString(req.Description)
@@ -314,15 +384,12 @@ func (app *Application) CreateAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("AUCTION FROM HANDLER:", createdAuction)
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":   true,
-		"auctionId": createdAuction.AuctionID,
-		"message":   "Auction created and published to WS successfully",
-		"data":      createdAuction,
+		"success": true,
+		"data":    createdAuction,
+		"message": "Auction created successfully",
 	})
 }
 
@@ -550,4 +617,73 @@ func (app *Application) GetBidTimelineByAuctionID(w http.ResponseWriter, r *http
 		"message": "Bid timeline fetched successfully",
 	})
 
+}
+
+// GenerateAuctionImageUploadURL generates a presigned URL for uploading auction images
+func (app *Application) GenerateAuctionImageUploadURL(w http.ResponseWriter, r *http.Request) {
+	app.Logger.Info("GenerateAuctionImageUploadURL called")
+
+	// Check if S3 uploader is available
+	if app.Uploader == nil {
+		app.Logger.Error("S3 uploader not initialized")
+		http.Error(w, "S3 uploader not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	claims, ok := r.Context().Value(types.UserContextKey).(*types.UserClaims)
+	if !ok || claims == nil {
+		app.Logger.Error("No user context found")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	app.Logger.Infof("User authenticated: %s", claims.UserID)
+
+	var req struct {
+		FileName    string `json:"fileName"`
+		ContentType string `json:"contentType"`
+		AuctionID   string `json:"auctionId"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		app.Logger.Errorf("Failed to decode request body: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	app.Logger.Infof("Request decoded: fileName=%s, contentType=%s, auctionId=%s", req.FileName, req.ContentType, req.AuctionID)
+
+	// Validate required fields
+	if req.FileName == "" || req.ContentType == "" || req.AuctionID == "" {
+		app.Logger.Error("Missing required fields")
+		http.Error(w, "fileName, contentType, and auctionId are required", http.StatusBadRequest)
+		return
+	}
+
+	// Generate unique key for the auction image
+	imageKey := app.Uploader.GenerateImageKey(req.AuctionID, req.FileName)
+	app.Logger.Infof("Generated image key: %s", imageKey)
+
+	// Generate presigned URL
+	presignedURL, err := app.Uploader.GeneratePresignedPutURL(imageKey, req.ContentType)
+	if err != nil {
+		app.Logger.Errorf("Failed to generate presigned URL: %v", err)
+		http.Error(w, "Failed to generate upload URL", http.StatusInternalServerError)
+		return
+	}
+	app.Logger.Infof("Generated presigned URL successfully")
+
+	imageURL := app.Uploader.GenerateImageURL(imageKey)
+	app.Logger.Infof("Generated image URL: %s", imageURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"uploadUrl": presignedURL,
+			"imageKey":  imageKey,
+			"imageUrl":  imageURL,
+		},
+		"message": "Upload URL generated successfully",
+	})
+	app.Logger.Info("Response sent successfully")
 }

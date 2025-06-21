@@ -83,7 +83,10 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 	}
 
 	token := s.generateToken(user.UserName, user.Email, "user", user.ID)
-	return &types.LoginResponse{Token: token}, nil
+	return &types.LoginResponse{
+		User:  *user,
+		Token: token,
+	}, nil
 }
 
 func (s *AuthService) generateToken(userName, email, role, userID string) string {
@@ -118,7 +121,7 @@ func (s *AuthService) GetGoogleLoginURL(state string) string {
 	return s.googleOauthClient.AuthCodeURL(state)
 }
 
-func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (map[string]interface{}, error) {
+func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (*types.GoogleOAuthResponse, error) {
 	token, err := s.googleOauthClient.Exchange(ctx, code)
 	if err != nil {
 		return nil, err
@@ -151,8 +154,10 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 	}
 
 	var user *types.User
+	var isNewUser bool
 
 	if existingUser == nil {
+		// User doesn't exist, create new user
 		hashedPassword, err := utils.HashPassword(googleID)
 		if err != nil {
 			return nil, err
@@ -165,22 +170,17 @@ func (s *AuthService) GetUserInfoFromGoogle(ctx context.Context, code string) (m
 		if err != nil {
 			return nil, err
 		}
+		isNewUser = true
 	} else {
+		// User exists, this is a login
 		user = existingUser
+		isNewUser = false
 	}
 
-	return map[string]interface{}{
-		"success": true,
-		"data": map[string]interface{}{
-			"user": map[string]interface{}{
-				"id":       user.ID,
-				"email":    user.Email,
-				"username": user.UserName,
-				"role":     "user",
-			},
-			"token":   s.generateToken(user.UserName, user.Email, "user", user.ID),
-			"message": "User logged in successfully",
-		},
+	return &types.GoogleOAuthResponse{
+		User:      *user,
+		Token:     s.generateToken(user.UserName, user.Email, "user", user.ID),
+		IsNewUser: isNewUser,
 	}, nil
 }
 

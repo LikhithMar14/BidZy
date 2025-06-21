@@ -15,6 +15,7 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	db "github.com/LikhithMar14/BidZy/internal/store/database"
+	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -37,6 +38,11 @@ func main() {
 		"JWT_SECRET", len(os.Getenv("JWT_SECRET")),
 		"PORT", os.Getenv("PORT"),
 	)
+	bucket := os.Getenv("S3_BUCKET_NAME")
+	uploader, err := utils.NewS3Uploader(&bucket)
+	if err != nil {
+		logger.Fatalw("failed to create s3 uploader", "error", err)
+	}
 
 	smtpCfg, err := mail.Load()
 	if err != nil {
@@ -74,7 +80,7 @@ func main() {
 	auctionScheduler := scheduler.NewAuctionScheduler(store.Auction, mailer)
 	auctionScheduler.Start()
 
-	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient, smtpCfg)
+	app := handler.NewApplication(cfg, Version, logger, hubManager, rdb, store, googleOauthClient, smtpCfg, uploader)
 	mux := app.Routes()
 
 	srv := &http.Server{

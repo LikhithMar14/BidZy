@@ -175,6 +175,7 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 			a.start_date, a.end_date, a.status,
 			COALESCE(a.increment, 100) as increment,
 			a.image,
+			COALESCE(a.client_count, 0) as client_count,
 			u.id, u.user_name, u.email, u.created_at, u.updated_at,
 			(
 				SELECT b.user_id
@@ -202,6 +203,7 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		var status string
 		var userID, userName, userEmail, highestBidder sql.NullString
 		var userCreatedAt, userUpdatedAt sql.NullTime
+		var dbClientCount int
 
 		err := rows.Scan(
 			&auction.AuctionID,
@@ -214,6 +216,7 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 			&status,
 			&auction.Increment,
 			&auction.Image,
+			&dbClientCount,
 			&userID,
 			&userName,
 			&userEmail,
@@ -291,9 +294,10 @@ func (s *auctionStore) GetAllAuctions(ctx context.Context) ([]*types.AuctionData
 		}
 	}
 
-	for _, auction := range auctions {
-		auction.ClientCount = len(auction.Participants)
-	}
+	// ClientCount is already set from database (dbClientCount), so don't overwrite it
+	// for _, auction := range auctions {
+	//	auction.ClientCount = len(auction.Participants)
+	// }
 
 	return auctions, nil
 }
@@ -374,6 +378,7 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 		a.start_date, a.end_date, a.status, 
 		COALESCE(a.increment, 100) as increment, 
 		a.image,
+		COALESCE(a.client_count, 0) as client_count,
 		u.id, u.user_name, u.email, u.created_at, u.updated_at,
 		(
 			SELECT b.user_id
@@ -393,6 +398,7 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 	var userID, userName, userEmail sql.NullString
 	var userCreatedAt, userUpdatedAt sql.NullTime
 	var highestBidder sql.NullString
+	var dbClientCount int
 
 	err := row.Scan(
 		&auction.AuctionID,
@@ -405,6 +411,7 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 		&auction.Status,
 		&auction.Increment,
 		&auction.Image,
+		&dbClientCount,
 		&userID,
 		&userName,
 		&userEmail,
@@ -481,7 +488,7 @@ func (s *auctionStore) GetAuctionByID(ctx context.Context, auctionID string) (*t
 		return nil, fmt.Errorf("error iterating participants: %w", err)
 	}
 
-	auction.ClientCount = len(auction.Participants)
+	auction.ClientCount = dbClientCount // Use the stored client count from database
 
 	return &auction, nil
 }
@@ -566,6 +573,47 @@ func (s *auctionStore) GetAuctionsByUserID(ctx context.Context, userID string) (
 		}
 	}
 
+	// Populate participants and client count for all auctions
+	if len(auctions) > 0 {
+		auctionMap := make(map[string]*types.AuctionData)
+		auctionIDs := make([]string, 0, len(auctions))
+
+		for _, auction := range auctions {
+			auctionIDs = append(auctionIDs, auction.AuctionID)
+			auctionMap[auction.AuctionID] = auction
+			auction.Participants = []types.User{} // Initialize
+		}
+
+		participantQuery := `
+			SELECT DISTINCT b.auction_id, u.id, u.user_name, u.email, u.created_at, u.updated_at
+			FROM bids b
+			JOIN users u ON b.user_id = u.id
+			WHERE b.auction_id = ANY($1);
+		`
+		partRows, err := s.db.QueryContext(ctx, participantQuery, auctionIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch participants: %w", err)
+		}
+		defer partRows.Close()
+
+		for partRows.Next() {
+			var auctionID string
+			var user types.User
+			err := partRows.Scan(&auctionID, &user.ID, &user.UserName, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan participant: %w", err)
+			}
+			if auction, ok := auctionMap[auctionID]; ok {
+				auction.Participants = append(auction.Participants, user)
+			}
+		}
+
+		// Set client count for each auction
+		for _, auction := range auctions {
+			auction.ClientCount = len(auction.Participants)
+		}
+	}
+
 	return auctions, nil
 }
 
@@ -642,7 +690,33 @@ func (a *auctionStore) HasAuctionEmailBeenSent(ctx context.Context, auctionID st
 }
 
 func (a *auctionStore) LogAuctionEmailSent(ctx context.Context, auctionID string) error {
-	query := `INSERT INTO auction_email_logs (auction_id) VALUES ($1) ON CONFLICT (auction_id) DO NOTHING`
+	query := `UPDATE auctions SET email_sent = true WHERE id = $1`
 	_, err := a.db.ExecContext(ctx, query, auctionID)
 	return err
+}
+
+// UpdateAuctionClientCount updates the client_count field for a specific auction
+func (s *auctionStore) UpdateAuctionClientCount(ctx context.Context, auctionID string, clientCount int) error {
+	log.Printf("🔄 [DB] Attempting to update client count for auction %s to %d", auctionID, clientCount)
+
+	query := `UPDATE auctions SET client_count = $1 WHERE id = $2`
+	result, err := s.db.ExecContext(ctx, query, clientCount, auctionID)
+	if err != nil {
+		log.Printf("❌ [DB] Failed to update client count for auction %s: %v", auctionID, err)
+		return fmt.Errorf("failed to update client count for auction %s: %w", auctionID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("❌ [DB] Failed to get rows affected: %v", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		log.Printf("⚠️ [DB] Auction %s not found during client count update", auctionID)
+		return fmt.Errorf("auction %s not found", auctionID)
+	}
+
+	log.Printf("✅ [DB] Successfully updated client count for auction %s to %d (rows affected: %d)", auctionID, clientCount, rowsAffected)
+	return nil
 }

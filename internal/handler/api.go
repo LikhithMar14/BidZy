@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/LikhithMar14/BidZy/internal/service"
-	"github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
+	auction_ws "github.com/LikhithMar14/BidZy/internal/service/auction/auction-ws"
 	"github.com/LikhithMar14/BidZy/internal/service/mail"
 	"github.com/LikhithMar14/BidZy/internal/store"
+	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -28,11 +29,12 @@ type Application struct {
 	Rdb        *redis.Client
 	Service    *service.Service
 	SMTPConfig *mail.SMTPConfig
+	Uploader   *utils.S3Uploader
 }
 
-func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Application {
+func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubManager *auction_ws.HubManager, rdb *redis.Client, store *store.Store, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig, uploader *utils.S3Uploader) *Application {
 
-	svc := service.NewService(store, cfg.JwtSecret, googleOauthClient, smtpCfg)
+	svc := service.NewService(store, cfg.JwtSecret, googleOauthClient, smtpCfg, uploader)
 	return &Application{
 		Config:     cfg,
 		Logger:     logger,
@@ -41,6 +43,7 @@ func NewApplication(cfg *Config, version string, logger *zap.SugaredLogger, hubM
 		Rdb:        rdb,
 		Service:    svc,
 		SMTPConfig: smtpCfg,
+		Uploader:   uploader,
 	}
 }
 

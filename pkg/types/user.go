@@ -17,16 +17,15 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 type UserStats struct {
-	AuctionsCreated     int     `json:"auctions_created"`
-	TotalBids           int     `json:"total_bids"`
-	TotalAmountBid      float64 `json:"total_amount_bid"`
-	ActiveAuctions      int     `json:"active_auctions"`
-	ParticipatedAuctions int    `json:"participated_auctions"`
-	WonAuctions         int     `json:"won_auctions"`
-	AvgBidAmount        float64 `json:"avg_bid_amount"`
-	HighestBidPlaced    float64 `json:"highest_bid_placed"`
+	AuctionsCreated      int     `json:"auctions_created"`
+	TotalBids            int     `json:"total_bids"`
+	TotalAmountBid       float64 `json:"total_amount_bid"`
+	ActiveAuctions       int     `json:"active_auctions"`
+	ParticipatedAuctions int     `json:"participated_auctions"`
+	WonAuctions          int     `json:"won_auctions"`
+	AvgBidAmount         float64 `json:"avg_bid_amount"`
+	HighestBidPlaced     float64 `json:"highest_bid_placed"`
 }
-
 
 type CreateUserRequest struct {
 	UserName string `json:"user_name"`
@@ -49,7 +48,14 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
+	User  User   `json:"user"`
 	Token string `json:"token"`
+}
+
+type GoogleOAuthResponse struct {
+	User      User   `json:"user"`
+	Token     string `json:"token"`
+	IsNewUser bool   `json:"is_new_user"` // To indicate if this was a registration or login
 }
 
 type UserClaims struct {
@@ -63,7 +69,6 @@ type UserClaims struct {
 type contextKey string
 
 const UserContextKey contextKey = "user"
-
 
 func GetUserClaimsFromContext(ctx context.Context) (*UserClaims, error) {
 	claims, ok := ctx.Value(UserContextKey).(*UserClaims)

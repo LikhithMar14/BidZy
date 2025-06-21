@@ -103,6 +103,9 @@ func (h *Hub) handleClientRegistration(client *Client) {
 
 	log.Printf("Client %s joined auction %s (total clients: %d)", client.ID, h.AuctionID, clientCount)
 
+	// Update client count in database asynchronously
+	go h.updateClientCountInDB(clientCount)
+
 	// Send user joined message to other clients
 	userJoinedMsg := types.NewUserJoinedMessage(h.AuctionID, client.ID)
 	if data, err := json.Marshal(userJoinedMsg); err == nil {
@@ -137,6 +140,9 @@ func (h *Hub) handleClientUnregistration(client *Client) {
 	}
 
 	log.Printf("Client %s left auction %s (remaining clients: %d)", client.ID, h.AuctionID, clientCount)
+
+	// Update client count in database asynchronously
+	go h.updateClientCountInDB(clientCount)
 
 	userLeftMsg := types.NewUserLeftMessage(h.AuctionID, client.ID)
 	if data, err := json.Marshal(userLeftMsg); err == nil {
@@ -413,7 +419,7 @@ func (h *Hub) GetLastActive() time.Time {
 
 func (h *Hub) GetAuctionData() *types.AuctionData {
 	h.mu.RLock()
-	defer h.mu.Unlock()
+	defer h.mu.RUnlock()
 
 	currentPrice := h.StartingPrice
 	var highestBidder string
@@ -474,4 +480,17 @@ func (h *Hub) GetBidHistory() []*Bid {
 	history := make([]*Bid, len(h.BidHistory))
 	copy(history, h.BidHistory)
 	return history
+}
+
+func (h *Hub) updateClientCountInDB(clientCount int) {
+	// Create a context with timeout for the database operation
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Update client count in database using the auction service
+	if err := h.auctionHTTP.UpdateClientCount(ctx, h.AuctionID, clientCount); err != nil {
+		log.Printf("Failed to update client count in database for auction %s: %v", h.AuctionID, err)
+	} else {
+		log.Printf("Successfully updated client count in database for auction %s: %d", h.AuctionID, clientCount)
+	}
 }

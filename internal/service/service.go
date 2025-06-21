@@ -11,13 +11,14 @@ import (
 	"github.com/LikhithMar14/BidZy/internal/service/user"
 	"github.com/LikhithMar14/BidZy/internal/store"
 	"github.com/LikhithMar14/BidZy/pkg/types"
+	"github.com/LikhithMar14/BidZy/pkg/utils"
 	"golang.org/x/oauth2"
 )
 
 type AuthService interface {
 	Register(ctx context.Context, req *types.CreateUserRequest) (*types.CreateUserResponse, error)
 	Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error)
-	GetUserInfoFromGoogle(ctx context.Context, code string) (map[string]interface{}, error)
+	GetUserInfoFromGoogle(ctx context.Context, code string) (*types.GoogleOAuthResponse, error)
 	GetGoogleLoginURL(state string) string
 	GetUserByEmail(ctx context.Context, email string) (*types.User, error)
 }
@@ -42,7 +43,7 @@ type UserService interface {
 	GetUserByID(ctx context.Context) (*types.User, error)
 	GetAuctionsByUserID(ctx context.Context) ([]*types.Auction, error)
 	GetBidsByUserID(ctx context.Context) ([]*types.Bid, error)
-	GetOwnStats(ctx context.Context) (*types.UserStats, error)	
+	GetOwnStats(ctx context.Context) (*types.UserStats, error)
 	GetUserStatsByID(ctx context.Context) (*types.UserStats, error)
 	GetParticipatedAuctions(ctx context.Context) ([]*types.Auction, error)
 }
@@ -60,12 +61,12 @@ type Service struct {
 	BidService      BidService
 }
 
-func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig) *Service {
+func NewService(store *store.Store, jwtSecret string, googleOauthClient *oauth2.Config, smtpCfg *mail.SMTPConfig, uploader *utils.S3Uploader) *Service {
 	return &Service{
-		AuthService: auth.NewAuthService(store.Auth,jwtSecret,googleOauthClient),
-		UserService: user.NewUserService(store.User),
+		AuthService:     auth.NewAuthService(store.Auth, jwtSecret, googleOauthClient),
+		UserService:     user.NewUserService(store.User),
 		CategoryService: category.NewCategoryService(store.Category),
-		AuctionService:  auction.NewAuctionHTTP(store.Auction, store.Bid),
+		AuctionService:  auction.NewAuctionHTTP(store.Auction, store.Bid, uploader),
 		MailService:     mail.NewMailService(smtpCfg, store.Auction, store.Auth, store.Bid),
 		BidService:      bid.NewBidService(store.Bid),
 	}

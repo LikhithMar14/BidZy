@@ -145,26 +145,26 @@ func (c *Client) handleBidMessage(msg *types.Message) {
 		return
 	}
 
-	if msg.BiddingPrice > 1_000_000_000 {
+	if msg.BiddingPrice > 10_000_000_000_000 {
 		log.Printf("Bid price too large from client %s: %f", c.ID, msg.BiddingPrice)
 		c.sendErrorMessage("Bid price too large")
 		return
 	}
 
-		bid := &Bid{
-			SenderID: msg.SenderID,
-			Price:    msg.BiddingPrice,
-			UserName: &c.UserName,
-		}
+	bid := &Bid{
+		SenderID: msg.SenderID,
+		Price:    msg.BiddingPrice,
+		UserName: &c.UserName,
+	}
 
-		select {
-		case c.Hub.Bid <- bid:
-			log.Printf("Bid submitted by %s: $%.2f", msg.SenderID, msg.BiddingPrice)
-		case <-c.Hub.Ctx.Done():
-			return
-		case <-time.After(ChannelTimeout):
-			log.Printf("Timeout submitting bid from client %s", c.ID)
-			c.sendErrorMessage("Bid submission timeout")
+	select {
+	case c.Hub.Bid <- bid:
+		log.Printf("Bid submitted by %s: $%.2f", msg.SenderID, msg.BiddingPrice)
+	case <-c.Hub.Ctx.Done():
+		return
+	case <-time.After(ChannelTimeout):
+		log.Printf("Timeout submitting bid from client %s", c.ID)
+		c.sendErrorMessage("Bid submission timeout")
 	}
 }
 

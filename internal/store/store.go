@@ -29,6 +29,8 @@ type AuthRepository interface {
 
 type CategoryRepository interface {
 	GetAllCategories(ctx context.Context) ([]*types.Category, error)
+	CreateCategory(ctx context.Context, name string) (*types.Category, error)
+	GetCategoryByName(ctx context.Context, name string) (*types.Category, error)
 }
 
 type AuctionRepository interface {

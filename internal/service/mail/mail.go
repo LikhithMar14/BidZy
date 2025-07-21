@@ -91,6 +91,8 @@ func (s *MailService) SendEmail(ctx context.Context, msg EmailMessage) error {
 }
 
 func (s *MailService) SendAuctionEndedEmail(ctx context.Context, auctionID string) error {
+	fmt.Printf("[Mail] 📧 Starting email send for auction %s\n", auctionID)
+
 	// Step 1: Fetch auction
 	auction, err := s.auctionStore.GetAuctionByID(ctx, auctionID)
 	if err != nil || auction == nil {
@@ -98,13 +100,14 @@ func (s *MailService) SendAuctionEndedEmail(ctx context.Context, auctionID strin
 	}
 
 	if auction.Status != "ENDED" {
+		fmt.Printf("[Mail] ⚠️ Auction %s status is %s, not ENDED. Skipping email send.\n", auctionID, auction.Status)
 		return nil // Only send if the auction is marked ENDED
 	}
 
 	// Step 2: Get highest bid
 	highestBid, err := s.bidStore.GetHighestBidForAuction(ctx, auctionID)
 	if err != nil {
-		// No bids were placed, no emails to send
+		fmt.Printf("[Mail] ℹ️ No bids found for auction %s. No emails to send.\n", auctionID)
 		return nil
 	}
 
@@ -114,14 +117,18 @@ func (s *MailService) SendAuctionEndedEmail(ctx context.Context, auctionID strin
 		return fmt.Errorf("failed to get winner user: %w", err)
 	}
 
+	fmt.Printf("[Mail] 🏆 Found winner %s for auction %s with bid %.2f\n", winner.UserName, auctionID, highestBid.Amount)
+
 	// Step 4: Get all bidders for this auction
 	bids, err := s.bidStore.GetBidsByAuctionID(ctx, auctionID)
 	if err != nil {
 		return fmt.Errorf("failed to get auction bids: %w", err)
 	}
 
-	// Create a map to track unique bidders
+	// Create a map to track unique bidders and successful email sends
 	bidderMap := make(map[string]bool)
+	emailsSent := 0
+	emailsFailed := 0
 
 	// Step 5: Send emails to all participants
 	for _, bid := range bids {
@@ -134,21 +141,31 @@ func (s *MailService) SendAuctionEndedEmail(ctx context.Context, auctionID strin
 		// Get bidder info
 		bidder, err := s.authStore.GetUserByID(ctx, bid.SenderID)
 		if err != nil || bidder == nil {
-			// Log error but continue with other bidders
-			fmt.Printf("Failed to get bidder info for ID %s: %v\n", bid.SenderID, err)
+			fmt.Printf("[Mail] ❌ Failed to get bidder info for ID %s: %v\n", bid.SenderID, err)
+			emailsFailed++
 			continue
 		}
 
 		// Send appropriate email based on whether they won or not
 		if bidder.ID == winner.ID {
 			// Send winner email
+			fmt.Printf("[Mail] 🎉 Sending winner email to %s\n", bidder.Email)
 			if err := s.sendWinnerEmail(ctx, bidder, auction, highestBid); err != nil {
-				fmt.Printf("Failed to send winner email to %s: %v\n", bidder.Email, err)
+				fmt.Printf("[Mail] ❌ Failed to send winner email to %s: %v\n", bidder.Email, err)
+				emailsFailed++
+			} else {
+				fmt.Printf("[Mail] ✅ Winner email sent successfully to %s\n", bidder.Email)
+				emailsSent++
 			}
 		} else {
 			// Send participant email
+			fmt.Printf("[Mail] 📨 Sending participant email to %s\n", bidder.Email)
 			if err := s.sendParticipantEmail(ctx, bidder, auction, winner, highestBid); err != nil {
-				fmt.Printf("Failed to send participant email to %s: %v\n", bidder.Email, err)
+				fmt.Printf("[Mail] ❌ Failed to send participant email to %s: %v\n", bidder.Email, err)
+				emailsFailed++
+			} else {
+				fmt.Printf("[Mail] ✅ Participant email sent successfully to %s\n", bidder.Email)
+				emailsSent++
 			}
 		}
 	}
@@ -156,11 +173,19 @@ func (s *MailService) SendAuctionEndedEmail(ctx context.Context, auctionID strin
 	// Also notify the auction creator
 	seller, err := s.authStore.GetUserByID(ctx, auction.User.ID)
 	if err == nil && seller != nil && !bidderMap[seller.ID] {
+		fmt.Printf("[Mail] 📤 Sending seller notification email to %s\n", seller.Email)
 		if err := s.sendSellerEmail(ctx, seller, auction, winner, highestBid); err != nil {
-			fmt.Printf("Failed to send seller email to %s: %v\n", seller.Email, err)
+			fmt.Printf("[Mail] ❌ Failed to send seller email to %s: %v\n", seller.Email, err)
+			emailsFailed++
+		} else {
+			fmt.Printf("[Mail] ✅ Seller email sent successfully to %s\n", seller.Email)
+			emailsSent++
 		}
 	}
 
+	fmt.Printf("[Mail] 📊 Email summary for auction %s: %d sent, %d failed\n", auctionID, emailsSent, emailsFailed)
+
+	// Return success even if some emails failed - we don't want to retry the entire batch
 	return nil
 }
 

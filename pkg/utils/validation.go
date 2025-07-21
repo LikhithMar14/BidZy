@@ -126,7 +126,7 @@ func ValidatePrice(price float64, fieldName string) error {
 	if price <= 0 {
 		return errors.New(fieldName + " must be positive")
 	}
-	if price > 1_000_000_000 {
+	if price > 10_000_000_000_000 {
 		return errors.New(fieldName + " is too large")
 	}
 	return nil

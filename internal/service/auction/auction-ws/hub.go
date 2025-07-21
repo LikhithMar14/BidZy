@@ -180,7 +180,7 @@ func (h *Hub) validateBid(bid *Bid) BidValidationResult {
 		}
 	}
 
-	const maxBidAmount = 1_000_000_000
+	const maxBidAmount = 10_000_000_000_000
 	if bid.Price > maxBidAmount {
 		return BidValidationResult{
 			IsValid:      false,

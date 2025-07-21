@@ -62,28 +62,34 @@ func (a *AuctionScheduler) Start() {
 		}
 
 		for _, auctionID := range auctionIDs {
-			// 🔒 Check if email already sent
+			// 🔒 Check if email already sent (double-check for safety)
 			sent, err := a.store.HasAuctionEmailBeenSent(ctx, auctionID)
 			if err != nil {
-				log.Printf("[Scheduler] Failed to check email log for auction %s: %v", auctionID, err)
+				log.Printf("[Scheduler] ❌ Failed to check email log for auction %s: %v", auctionID, err)
 				continue
 			}
 			if sent {
-				log.Printf("[Scheduler] Email already sent for auction %s. Skipping.\n", auctionID)
+				log.Printf("[Scheduler] ✅ Email already sent for auction %s. Skipping.\n", auctionID)
 				continue
 			}
+
+			log.Printf("[Scheduler] 📧 Sending auction ended email for auction %s...", auctionID)
 
 			// ✅ Send email
 			if err := a.mailService.SendAuctionEndedEmail(ctx, auctionID); err != nil {
-				log.Printf("[Scheduler] Failed to send winner email for auction %s: %v", auctionID, err)
+				log.Printf("[Scheduler] ❌ Failed to send winner email for auction %s: %v", auctionID, err)
 				continue
 			}
 
+			log.Printf("[Scheduler] ✅ Successfully sent emails for auction %s", auctionID)
+
 			// ✏️ Log that email has been sent
 			if err := a.store.LogAuctionEmailSent(ctx, auctionID); err != nil {
-				log.Printf("[Scheduler] Email sent but failed to log for auction %s: %v", auctionID, err)
+				log.Printf("[Scheduler] ⚠️ Email sent but failed to log for auction %s: %v", auctionID, err)
+				// This is critical - if we can't log it, the email might be sent again
+				// In production, you might want to implement a retry mechanism or alerting
 			} else {
-				log.Printf("[Scheduler] Winner email sent and logged for auction %s ✅", auctionID)
+				log.Printf("[Scheduler] 🎯 Winner email sent and logged successfully for auction %s ✅", auctionID)
 			}
 		}
 	})

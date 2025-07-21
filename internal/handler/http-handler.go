@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -204,8 +205,14 @@ func (app *Application) GoogleCallbackHandler(w http.ResponseWriter, r *http.Req
 	// 	SameSite: http.SameSiteLaxMode,
 	// })
 
-	// Redirect to frontend without sensitive data in URL
-	redirectURL := "http://localhost:3000/auth/callback?success=true"
+	// Redirect to frontend with token in URL for frontend access
+	redirectURL := fmt.Sprintf("%s/auth/callback?success=true&token=%s&user_id=%s&username=%s&email=%s&is_new_user=%t",
+		app.Config.FrontendUrl,
+		userResponse.Token,
+		userResponse.User.ID,
+		userResponse.User.UserName,
+		userResponse.User.Email,
+		userResponse.IsNewUser)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 

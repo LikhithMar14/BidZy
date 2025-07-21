@@ -690,9 +690,12 @@ func (a *auctionStore) HasAuctionEmailBeenSent(ctx context.Context, auctionID st
 }
 
 func (a *auctionStore) LogAuctionEmailSent(ctx context.Context, auctionID string) error {
-	query := `UPDATE auctions SET email_sent = true WHERE id = $1`
+	query := `INSERT INTO auction_email_logs (auction_id) VALUES ($1) ON CONFLICT (auction_id) DO NOTHING`
 	_, err := a.db.ExecContext(ctx, query, auctionID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to log auction email sent: %w", err)
+	}
+	return nil
 }
 
 // UpdateAuctionClientCount updates the client_count field for a specific auction
